@@ -19,40 +19,56 @@
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbyQX0mpXZbXEKTaphPbc8YZVtwWHoEvn7CcoDxx2sg71myoCrkOogCVlfeymWz-viMPNA/exec";
 
-function formatGermanDate(dateString) {
-  const d = new Date(dateString);
-  return d.toLocaleDateString("de-DE", {
-    weekday: "long",
-    day: "numeric",
-    month: "numeric",
-    year: "2-digit"
-  });
+function formatGermanDate(value) {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value); // Fallback: zeig Rohwert
+  const weekday = d.toLocaleDateString("de-DE", { weekday: "long" });
+  const rest = d.toLocaleDateString("de-DE", { day: "numeric", month: "numeric", year: "2-digit" });
+  return `${weekday} ${rest}`; // -> "Montag 9.2.26"
 }
 
-fetch(API_URL, { cache: "no-store" })
-  .then(r => r.json())
-  .then(d => {
-    if (!d.ordnungsdienst || d.ordnungsdienst.length === 0) {
-      document.getElementById("out").innerHTML =
-        `<b>${d.kw}</b><div>Kein Ordnungsdienst (Ferien).</div>`;
-      return;
-    }
+async function load() {
+  const out = document.getElementById("out");
 
-    const start = formatGermanDate(d.monday);
+  // Cache-Buster, damit GitHub/Browser nicht alte Antworten verwenden
+  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
 
-    document.getElementById("out").innerHTML =
-      `<div><b>${d.kw}</b></div>
-       <div>ab <b>${start}</b></div>
-       <ol>${d.ordnungsdienst.map(n => `<li><b>${n}</b></li>`).join("")}</ol>`;
-  })
-  .catch(err => {
-    document.getElementById("out").textContent =
-      "Fehler beim Laden: " + err.message;
-  });
+  const r = await fetch(url, { cache: "no-store", redirect: "follow" });
+  const text = await r.text();
+
+  // Versuche JSON zu parsen – wenn nicht, zeig die ersten Zeichen zur Diagnose
+  let d;
+  try {
+    d = JSON.parse(text);
+  } catch (e) {
+    out.innerHTML =
+      `Fehler: Server hat kein JSON geliefert.<br>
+       <div class="muted">Anfang der Antwort:</div>
+       <pre style="white-space:pre-wrap">${text.slice(0, 400).replaceAll("<","&lt;")}</pre>`;
+    return;
+  }
+
+  if (!d.ordnungsdienst || d.ordnungsdienst.length === 0) {
+    out.innerHTML = `<b>${d.kw ?? ""}</b><div>Kein Ordnungsdienst (Ferien / keine Daten).</div>`;
+    return;
+  }
+
+  const start = formatGermanDate(d.monday);
+  out.innerHTML =
+    `<div><b>${d.kw}</b></div>
+     <div>ab <b>${start}</b></div>
+     <ol>${d.ordnungsdienst.map(n => `<li><b>${n}</b></li>`).join("")}</ol>`;
+}
+
+load().catch(err => {
+  document.getElementById("out").textContent = "Fehler beim Laden: " + err.message;
+});
 </script>
+
 
 </body>
 </html>
+
 
 
 
