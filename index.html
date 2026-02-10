@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ordnungsdienst</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:24px; max-width:720px}
+    .card{border:1px solid #ddd; border-radius:14px; padding:14px 16px; margin:10px 0}
+    li{margin:6px 0; font-size:1.1rem}
+    .muted{color:#555}
+  </style>
+</head>
+<body>
+  <h1>📋 Ordnungsdienst</h1>
+  <div class="card" id="out">Lade…</div>
+  <div class="muted" id="hint"></div>
+
+<script>
+const API_URL = "DEINE_WEBAPP_EXEC_URL"; // <-- hier deine .../exec URL einsetzen
+
+fetch(API_URL, { cache: "no-store" })
+  .then(r => r.json())
+  .then(d => {
+    if (!d.ordnungsdienst || d.ordnungsdienst.length === 0) {
+      document.getElementById("out").innerHTML =
+        `<b>${d.kw || ""}</b><div>Kein Ordnungsdienst (Ferien / keine Schulwoche).</div>`;
+      return;
+    }
+    document.getElementById("out").innerHTML =
+      `<div><b>${d.kw}</b> (${d.monday} – ${d.friday})</div>` +
+      `<ol>${d.ordnungsdienst.map(n => `<li><b>${n}</b></li>`).join("")}</ol>`;
+    document.getElementById("hint").textContent = "Diese Einteilung gilt für die ganze Woche.";
+  })
+  .catch(err => {
+    document.getElementById("out").textContent = "Fehler: " + err.message;
+  });
+</script>
+</body>
+</html>
