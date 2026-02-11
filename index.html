@@ -3,72 +3,131 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Ordnungsdienst</title>
+  <title>Ordnungsdienst & Termine</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:24px; max-width:720px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:24px; max-width:760px}
+    h1{margin:0 0 14px}
+    h2{margin:18px 0 10px; font-size:1.1rem}
     .card{border:1px solid #ddd; border-radius:14px; padding:14px 16px; margin:10px 0}
-    li{margin:6px 0; font-size:1.1rem}
     .muted{color:#555}
+    ol, ul{margin:10px 0 0 22px}
+    li{margin:6px 0; font-size:1.05rem}
+    .row{display:flex; gap:10px; flex-wrap:wrap}
+    .pill{display:inline-block; padding:2px 10px; border:1px solid #ddd; border-radius:999px; font-size:0.9rem; color:#444}
+    .err{color:#b00020}
   </style>
 </head>
 <body>
   <h1>📋 Ordnungsdienst</h1>
-  <div class="card" id="out">Lade…</div>
-  <div class="muted" id="hint"></div>
+
+  <div class="card" id="dienstCard">Lade…</div>
+
+  <div class="row">
+    <span class="pill" id="statusPill">—</span>
+  </div>
+
+  <div class="card" id="termineCard">
+    <h2>📌 Termine</h2>
+    <div id="termineOut" class="muted">Lade…</div>
+  </div>
+
+  <div class="card" id="kaCard">
+    <h2>📝 Klassenarbeiten</h2>
+    <div id="kaOut" class="muted">Lade…</div>
+  </div>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbyQX0mpXZbXEKTaphPbc8YZVtwWHoEvn7CcoDxx2sg71myoCrkOogCVlfeymWz-viMPNA/exec";
 
-function formatGermanDate(value) {
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return String(value); // Fallback: zeig Rohwert
-  const weekday = d.toLocaleDateString("de-DE", { weekday: "long" });
+// "2026-02-09" -> "Mo 9.2.26"
+function formatShortDate(isoDate) {
+  const d = new Date(isoDate + "T00:00:00");
+  const wd = d.toLocaleDateString("de-DE", { weekday: "short" }); // "Mo."
   const rest = d.toLocaleDateString("de-DE", { day: "numeric", month: "numeric", year: "2-digit" });
-  return `${weekday} ${rest}`; // -> "Montag 9.2.26"
+  return `${wd.replace(".", "")} ${rest}`; // "Mo 9.2.26"
 }
 
-async function load() {
-  const out = document.getElementById("out");
+// ISO oder Date-String -> "Montag 9.2.26"
+function formatLongDate(value) {
+  // robust: wenn ISO vorhanden, nutze es
+  const s = String(value);
+  const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  const d = m ? new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`) : new Date(value);
+  if (isNaN(d.getTime())) return s;
 
-  // Cache-Buster, damit GitHub/Browser nicht alte Antworten verwenden
+  const weekday = d.toLocaleDateString("de-DE", { weekday: "long" });
+  const rest = d.toLocaleDateString("de-DE", { day: "numeric", month: "numeric", year: "2-digit" });
+  return `${weekday} ${rest}`; // ohne Komma
+}
+
+function renderList(containerId, items, emptyText, mapper) {
+  const el = document.getElementById(containerId);
+  if (!items || items.length === 0) {
+    el.innerHTML = `<div class="muted">${emptyText}</div>`;
+    return;
+  }
+  el.innerHTML = `<ul>${items.map(mapper).join("")}</ul>`;
+}
+
+async function main() {
+  const dienstCard = document.getElementById("dienstCard");
+  const statusPill = document.getElementById("statusPill");
+
+  // Cache-Buster
   const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
 
   const r = await fetch(url, { cache: "no-store", redirect: "follow" });
   const text = await r.text();
 
-  // Versuche JSON zu parsen – wenn nicht, zeig die ersten Zeichen zur Diagnose
   let d;
   try {
     d = JSON.parse(text);
-  } catch (e) {
-    out.innerHTML =
-      `Fehler: Server hat kein JSON geliefert.<br>
-       <div class="muted">Anfang der Antwort:</div>
-       <pre style="white-space:pre-wrap">${text.slice(0, 400).replaceAll("<","&lt;")}</pre>`;
+  } catch {
+    dienstCard.innerHTML = `<div class="err">Fehler: Server hat kein JSON geliefert.</div>
+      <div class="muted" style="margin-top:8px">Anfang der Antwort:</div>
+      <pre style="white-space:pre-wrap">${text.slice(0, 400).replaceAll("<","&lt;")}</pre>`;
+    statusPill.textContent = "Fehler";
     return;
   }
 
-  if (!d.ordnungsdienst || d.ordnungsdienst.length === 0) {
-    out.innerHTML = `<b>${d.kw ?? ""}</b><div>Kein Ordnungsdienst (Ferien / keine Daten).</div>`;
-    return;
+  if (d.error) {
+    dienstCard.innerHTML = `<div class="err">Fehler im Script:</div><div class="muted">${d.error}</div>`;
+    statusPill.textContent = "Fehler";
+  } else if (!d.ordnungsdienst || d.ordnungsdienst.length === 0) {
+    dienstCard.innerHTML = `<b>${d.kw ?? ""}</b><div class="muted" style="margin-top:6px">Kein Ordnungsdienst (Ferien / keine Schulwoche).</div>`;
+    statusPill.textContent = "Ferien/leer";
+  } else {
+    const start = formatLongDate(d.monday); // "Montag 9.2.26"
+    dienstCard.innerHTML =
+      `<div><b>${d.kw}</b></div>
+       <div>ab <b>${start}</b></div>
+       <ol>${d.ordnungsdienst.map(n => `<li><b>${n}</b></li>`).join("")}</ol>
+       <div class="muted" style="margin-top:10px">Diese Einteilung gilt für die ganze Woche.</div>`;
+    statusPill.textContent = "Aktuell";
   }
 
-  const start = formatGermanDate(d.monday);
-  out.innerHTML =
-    `<div><b>${d.kw}</b></div>
-     <div>ab <b>${start}</b></div>
-     <ol>${d.ordnungsdienst.map(n => `<li><b>${n}</b></li>`).join("")}</ol>`;
+  // Termine: {date, a, b} -> "Mo 9.2.26 – Titel (Info)"
+  renderList("termineOut", d.termine, "Keine Termine eingetragen.", (it) => {
+    const date = formatShortDate(it.date);
+    const title = it.a ? it.a : "";
+    const info = it.b ? ` <span class="muted">(${it.b})</span>` : "";
+    return `<li><b>${date}</b> – ${title}${info}</li>`;
+  });
+
+  // Klassenarbeiten: {date, a, b} -> "Mo 9.2.26 – Fach (Thema)"
+  renderList("kaOut", d.klassenarbeiten, "Keine Klassenarbeiten eingetragen.", (it) => {
+    const date = formatShortDate(it.date);
+    const fach = it.a ? it.a : "";
+    const thema = it.b ? ` <span class="muted">(${it.b})</span>` : "";
+    return `<li><b>${date}</b> – ${fach}${thema}</li>`;
+  });
 }
 
-load().catch(err => {
-  document.getElementById("out").textContent = "Fehler beim Laden: " + err.message;
+main().catch(err => {
+  document.getElementById("dienstCard").innerHTML = `<div class="err">Fehler beim Laden:</div><div class="muted">${err.message}</div>`;
+  document.getElementById("statusPill").textContent = "Fehler";
 });
 </script>
 
-
 </body>
 </html>
-
-
-
-
