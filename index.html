@@ -12,7 +12,7 @@
     .muted{color:#555}
     ol, ul{margin:10px 0 0 22px}
     li{margin:6px 0; font-size:1.05rem}
-    .row{display:flex; gap:10px; flex-wrap:wrap}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
     .pill{display:inline-block; padding:2px 10px; border:1px solid #ddd; border-radius:999px; font-size:0.9rem; color:#444}
     .err{color:#b00020}
     .table {
@@ -27,19 +27,9 @@
       vertical-align: top;
       border-top: 1px solid #eee;
     }
-    .table th {
-      font-size: 0.9rem;
-      color: #555;
-      font-weight: 600;
-    }
-    .table td.date {
-      white-space: nowrap;
-      width: 110px;
-      font-variant-numeric: tabular-nums;
-    }
-    .table td.info {
-      color: #555;
-    }
+    .table th { font-size: 0.9rem; color: #555; font-weight: 600; }
+    .table td.date { white-space: nowrap; width: 110px; font-variant-numeric: tabular-nums; }
+    .table td.info { color: #555; }
     .badge {
       display: inline-block;
       padding: 2px 10px;
@@ -47,94 +37,49 @@
       font-size: 0.85rem;
       border: 1px solid #ddd;
     }
-    .badge-ok { background: #f1fff4; border-color: #bfe8c9; }
-    .badge-warn { background: #fff6f6; border-color: #f2b8b8; }
+    .badge-ok      { background: #f1fff4; border-color: #bfe8c9; }
+    .badge-warn    { background: #fff6f6; border-color: #f2b8b8; }
     .badge-neutral { background: #f6f7f9; border-color: #e2e4e9; }
-    .badge-bday { background: #fff8f0; border-color: #f5d08a; color: #a05a00; }
+    .badge-bday    { background: #fff8f0; border-color: #f5d08a; color: #a05a00; }
 
-    .countdown {
-      margin-top: 8px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid #f2b8b8;
-      background: #fff6f6;
-    }
-    .countdown strong { font-weight: 700; }
     .small { font-size: 0.9rem; color: #555; }
-    .announce {
-      border-color: #ffd66b;
-      background: #fff9e6;
-    }
-    .announce h2 {
-      margin: 0 0 8px;
-      font-size: 1.05rem;
-    }
+    .announce { border-color: #ffd66b; background: #fff9e6; }
+    .announce h2 { margin: 0 0 8px; font-size: 1.05rem; }
     .announce ul { margin: 8px 0 0 20px; }
-    .service-card { border-color:#e6e6e6; }
-    .service-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+
+    .service-card  { border-color:#e6e6e6; }
+    .service-head  { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
     .service-title { font-size:1.05rem; font-weight:700; margin:0; }
-    .service-sub { color:#555; font-size:0.95rem; margin-top:4px; }
-    .service-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px 14px; margin-top:12px; }
-    .service-name {
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px 12px;
-      font-size:1.05rem;
-    }
-    .service-foot { margin-top:12px; color:#555; font-size:0.9rem; }
-    .kv { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
-    .kv .badge { font-size:0.85rem; }
+    .service-sub   { color:#555; font-size:0.95rem; margin-top:4px; }
+    .service-grid  { display:grid; grid-template-columns: 1fr 1fr; gap:10px 14px; margin-top:12px; }
+    .service-name  { border:1px solid #eee; border-radius:12px; padding:10px 12px; font-size:1.05rem; }
+    .service-foot  { margin-top:12px; color:#555; font-size:0.9rem; }
 
-    /* Birthday card */
-    .bday-card {
-      border-color: #f5d08a;
-      background: #fffdf5;
-    }
-    .bday-list {
-      margin-top: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+    .bday-card { border-color: #f5d08a; background: #fffdf5; }
+    .bday-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
     .bday-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
-      border: 1px solid #f0e0b0;
-      border-radius: 10px;
-      background: #fff;
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border: 1px solid #f0e0b0;
+      border-radius: 10px; background: #fff;
     }
-    .bday-item .bday-emoji {
-      font-size: 1.3rem;
-      flex-shrink: 0;
-    }
-    .bday-item .bday-name {
-      font-weight: 700;
-      font-size: 1.05rem;
-      flex: 1;
-    }
-    .bday-item .bday-day {
-      color: #777;
-      font-size: 0.9rem;
-    }
-    .bday-item.bday-today {
-      border-color: #f5a623;
-      background: #fff8ec;
-    }
-    .bday-item.bday-today .bday-name {
-      color: #a05a00;
-    }
+    .bday-item .bday-emoji { font-size: 1.3rem; flex-shrink: 0; }
+    .bday-item .bday-name  { font-weight: 700; font-size: 1.05rem; flex: 1; }
+    .bday-item .bday-day   { color: #777; font-size: 0.9rem; }
+    .bday-item.bday-today  { border-color: #f5a623; background: #fff8ec; }
+    .bday-item.bday-today .bday-name { color: #a05a00; }
 
-    /* Mobile-Layout für Tabellen */
+    .updating-hint {
+      font-size: 0.8rem; color: #aaa; margin-left: 6px;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
     @media (max-width: 520px) {
       .table thead { display: none; }
-      .table { width: 100%; min-width: 0; }
       .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
-      .table tr { border-top: 1px solid #eee; padding: 10px 0; }
-      .table td { border-top: none; padding: 4px 0; }
+      .table tr  { border-top: 1px solid #eee; padding: 10px 0; }
+      .table td  { border-top: none; padding: 4px 0; }
       .table td.date { font-weight: 700; margin-bottom: 4px; }
-      .table td.info { margin-top: 4px; }
       .service-grid { grid-template-columns: 1fr; }
     }
   </style>
@@ -143,13 +88,12 @@
   <h1>📋 Klasseninfos 8A</h1>
 
   <div class="card" id="announceCard" style="display:none"></div>
-
   <div class="card" id="dienstCard">Lade…</div>
-
   <div class="card" id="bdayCard" style="display:none"></div>
 
   <div class="row">
     <span class="pill" id="statusPill">—</span>
+    <span class="updating-hint" id="updatingHint" style="display:none">Aktualisiere…</span>
   </div>
 
   <div class="card" id="termineCard">
@@ -163,14 +107,13 @@
   </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxLIoQW3X4m-DHnHPFluK0uA79493EoSzO6ZNpACBaJkEE_2i0lrP4Za0aocjiegYf2gw/exec";
+const API_URL   = "https://script.google.com/macros/s/AKfycbxLIoQW3X4m-DHnHPFluK0uA79493EoSzO6ZNpACBaJkEE_2i0lrP4Za0aocjiegYf2gw/exec";
+const CACHE_KEY = "klasseninfos_cache";
 
-function parseISODate(iso) {
-  return new Date(iso + "T00:00:00");
-}
+function parseISODate(iso) { return new Date(iso + "T00:00:00"); }
 
 function formatShortDate(isoDate) {
-  const d = parseISODate(isoDate);
+  const d  = parseISODate(isoDate);
   const wd = d.toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "");
   const rest = d.toLocaleDateString("de-DE", { day: "numeric", month: "numeric", year: "2-digit" });
   return `${wd} ${rest}`;
@@ -181,107 +124,63 @@ function formatLongDate(value) {
   const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
   const d = m ? new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`) : new Date(value);
   if (isNaN(d.getTime())) return s;
-  const weekday = d.toLocaleDateString("de-DE", { weekday: "long" });
-  const rest = d.toLocaleDateString("de-DE", { day: "numeric", month: "numeric", year: "2-digit" });
-  return `${weekday} ${rest}`;
+  return d.toLocaleDateString("de-DE", { weekday: "long" }) + " " +
+         d.toLocaleDateString("de-DE", { day: "numeric", month: "numeric", year: "2-digit" });
 }
 
 function daysUntil(iso) {
-  const today = new Date();
-  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const d = parseISODate(iso);
-  const diff = d.getTime() - t0.getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24));
+  const t0 = new Date(); t0.setHours(0,0,0,0);
+  return Math.round((parseISODate(iso) - t0) / 86400000);
 }
 
-// Returns "YYYY-MM-DD" for today
-function todayISO() {
-  const d = new Date();
-  return d.getFullYear() + "-"
-    + String(d.getMonth() + 1).padStart(2, "0") + "-"
-    + String(d.getDate()).padStart(2, "0");
+function todayWeekday() {
+  return new Date().toLocaleDateString("de-DE", { weekday: "long" });
 }
 
 function renderTable(containerId, items, headers, rowHtml, emptyText) {
   const el = document.getElementById(containerId);
   if (!items || items.length === 0) {
-    el.innerHTML = `<div class="muted">${emptyText}</div>`;
-    return;
+    el.innerHTML = `<div class="muted">${emptyText}</div>`; return;
   }
   el.innerHTML = `
     <table class="table">
-      <thead>
-        <tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>
-      </thead>
-      <tbody>
-        ${items.map(rowHtml).join("")}
-      </tbody>
-    </table>
-  `;
+      <thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>
+      <tbody>${items.map(rowHtml).join("")}</tbody>
+    </table>`;
 }
 
 function setStatusPill(pill, state) {
-  pill.className = "pill badge " + (state === "ok" ? "badge-ok" : state === "warn" ? "badge-warn" : "badge-neutral");
+  pill.className = "pill badge " +
+    (state === "ok" ? "badge-ok" : state === "warn" ? "badge-warn" : "badge-neutral");
 }
 
 function renderBirthdays(bdays) {
-  const bdayCard = document.getElementById("bdayCard");
-  if (!bdays || bdays.length === 0) {
-    bdayCard.style.display = "none";
-    return;
-  }
-
-  const today = todayISO();
-
-  // Determine today's weekday in German for matching
-  const todayDate = new Date(today + "T00:00:00");
-  const todayWeekday = todayDate.toLocaleDateString("de-DE", { weekday: "long" });
-
-  bdayCard.style.display = "block";
-  bdayCard.className = "card bday-card";
-
-  const items = bdays.map(b => {
-    const isToday = b.weekday === todayWeekday;
-    const emoji = isToday ? "🎉" : "🎂";
-    const dayLabel = isToday
-      ? `<span class="badge badge-bday">Heute! 🥳</span>`
-      : `<span class="bday-day">${b.weekday}</span>`;
-    return `
-      <div class="bday-item${isToday ? " bday-today" : ""}">
-        <span class="bday-emoji">${emoji}</span>
-        <span class="bday-name">${b.name}</span>
-        <span class="badge badge-neutral">${b.age}</span>
-        ${dayLabel}
-      </div>
-    `;
-  }).join("");
-
-  bdayCard.innerHTML = `
+  const card = document.getElementById("bdayCard");
+  if (!bdays || bdays.length === 0) { card.style.display = "none"; return; }
+  const today = todayWeekday();
+  card.style.display = "block";
+  card.className = "card bday-card";
+  card.innerHTML = `
     <div class="service-title">🎂 Geburtstage diese Woche</div>
-    <div class="bday-list">${items}</div>
-  `;
+    <div class="bday-list">
+      ${bdays.map(b => {
+        const isToday = b.weekday === today;
+        return `
+          <div class="bday-item${isToday ? " bday-today" : ""}">
+            <span class="bday-emoji">${isToday ? "🎉" : "🎂"}</span>
+            <span class="bday-name">${b.name}</span>
+            <span class="badge badge-neutral">${b.age}</span>
+            ${isToday
+              ? `<span class="badge badge-bday">Heute! 🥳</span>`
+              : `<span class="bday-day">${b.weekday}</span>`}
+          </div>`;
+      }).join("")}
+    </div>`;
 }
 
-async function main() {
+function renderAll(d) {
   const dienstCard = document.getElementById("dienstCard");
   const statusPill = document.getElementById("statusPill");
-
-  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
-
-  const r = await fetch(url, { cache: "no-store", redirect: "follow" });
-  const text = await r.text();
-
-  let d;
-  try {
-    d = JSON.parse(text);
-  } catch (e) {
-    dienstCard.innerHTML = `<div class="err">Fehler: Server hat kein JSON geliefert.</div>
-      <div class="muted" style="margin-top:8px">Anfang der Antwort:</div>
-      <pre style="white-space:pre-wrap">${text.slice(0, 400).replaceAll("<","&lt;")}</pre>`;
-    statusPill.textContent = "Fehler";
-    setStatusPill(statusPill, "warn");
-    return;
-  }
 
   // Ankündigungen
   const announceCard = document.getElementById("announceCard");
@@ -302,18 +201,15 @@ async function main() {
     dienstCard.innerHTML = `<div class="err">Fehler im Script:</div><div class="muted">${d.error}</div>`;
     statusPill.textContent = "Fehler";
     setStatusPill(statusPill, "warn");
-
   } else if (!d.ordnungsdienst || d.ordnungsdienst.length === 0) {
     dienstCard.className = "card";
     dienstCard.innerHTML = `<b>${d.kw ?? ""}</b><div class="muted" style="margin-top:6px">Kein Ordnungsdienst (Ferien / keine Schulwoche).</div>`;
     statusPill.textContent = "Ferien/leer";
     setStatusPill(statusPill, "neutral");
-
   } else {
     const start = formatLongDate(d.monday);
-    const end = d.friday ? formatLongDate(d.friday) : "";
+    const end   = d.friday ? formatLongDate(d.friday) : "";
     const range = end ? `${start} – ${end}` : start;
-
     dienstCard.className = "card service-card";
     dienstCard.innerHTML = `
       <div class="service-head">
@@ -326,9 +222,7 @@ async function main() {
       <div class="service-grid">
         ${d.ordnungsdienst.map(n => `<div class="service-name"><b>${n}</b></div>`).join("")}
       </div>
-      <div class="service-foot">Diese Einteilung gilt für die ganze Woche.</div>
-    `;
-
+      <div class="service-foot">Diese Einteilung gilt für die ganze Woche.</div>`;
     statusPill.textContent = "Aktuell";
     setStatusPill(statusPill, "ok");
   }
@@ -337,50 +231,67 @@ async function main() {
   renderBirthdays(d.geburtstage || []);
 
   // Termine
-  renderTable(
-    "termineOut",
-    d.termine,
+  renderTable("termineOut", d.termine,
     ["Datum", "Termin", "Info"],
-    (it) => `
+    it => `
       <tr>
         <td class="date"><b>${formatShortDate(it.date)}</b></td>
         <td>${it.a || ""}</td>
-        <td class="info">${it.b ? it.b : ""}</td>
-      </tr>
-    `,
+        <td class="info">${it.b || ""}</td>
+      </tr>`,
     "Keine Termine eingetragen."
   );
 
   // Klassenarbeiten
-  renderTable(
-    "kaOut",
-    d.klassenarbeiten,
+  renderTable("kaOut", d.klassenarbeiten,
     ["Datum", "Fach", "Thema"],
-    (it) => {
+    it => {
       const left = daysUntil(it.date);
-      const cd = left === 0 ? "Heute" : (left === 1 ? "Morgen" : `in ${left} Tagen`);
+      const cd   = left === 0 ? "Heute" : left === 1 ? "Morgen" : `in ${left} Tagen`;
       return `
         <tr>
           <td class="date"><b>${formatShortDate(it.date)}</b></td>
           <td>${it.a || ""}</td>
-          <td class="info">
-            ${it.b ? it.b : ""}
-            <div class="small">⏳ ${cd}</div>
-          </td>
-        </tr>
-      `;
+          <td class="info">${it.b || ""}<div class="small">⏳ ${cd}</div></td>
+        </tr>`;
     },
     "Keine Klassenarbeiten eingetragen."
   );
 }
 
-main().catch(err => {
-  document.getElementById("dienstCard").innerHTML = `<div class="err">Fehler beim Laden:</div><div class="muted">${err.message}</div>`;
-  const pill = document.getElementById("statusPill");
-  pill.textContent = "Fehler";
-  pill.className = "pill badge badge-warn";
-});
-</script>
+async function main() {
+  const hint = document.getElementById("updatingHint");
 
+  // 1. Gecachte Daten sofort rendern (gefühlt sofortiger Start)
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      renderAll(JSON.parse(raw));
+      hint.style.display = "inline";
+    }
+  } catch (_) {}
+
+  // 2. Frische Daten im Hintergrund holen
+  try {
+    const url  = API_URL + "?t=" + Date.now();
+    const text = await (await fetch(url, { cache: "no-store", redirect: "follow" })).text();
+    const d    = JSON.parse(text);
+    localStorage.setItem(CACHE_KEY, text);
+    renderAll(d);
+  } catch (err) {
+    if (!localStorage.getItem(CACHE_KEY)) {
+      document.getElementById("dienstCard").innerHTML =
+        `<div class="err">Fehler beim Laden:</div><div class="muted">${err.message}</div>`;
+      const pill = document.getElementById("statusPill");
+      pill.textContent = "Fehler";
+      pill.className = "pill badge badge-warn";
+    }
+  } finally {
+    hint.style.display = "none";
+  }
+}
+
+main();
+</script>
 </body>
 </html>
