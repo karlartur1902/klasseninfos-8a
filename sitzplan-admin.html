@@ -258,11 +258,10 @@ function SitzplanAdmin(){
       {arrangement&&(<>
         {!flipped&&<TafelBar/>}
 
-        <div style={{maxWidth:780,margin:"0 auto 20px",display:"flex",gap:8,flexDirection:flipped?"row-reverse":"row"}}>
-          {/* Fenster */}
-          <div style={{width:20,display:"flex",alignItems:"stretch"}}>
+        <div style={{maxWidth:780,margin:"0 auto 20px",display:"flex",gap:8}}>
+          {!flipped&&<div style={{width:20,flexShrink:0,display:"flex",alignItems:"stretch"}}>
             <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",fontSize:10,color:"#5599cc",letterSpacing:2,background:"#0d2040",border:"1px solid #3366aa",borderRadius:6,padding:"10px 3px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>🪟 FENSTER</div>
-          </div>
+          </div>}
 
           <div style={{flex:1}}>
             {(flipped?[4,3,2,1,0]:[0,1,2,3,4]).map(row=>(
@@ -310,6 +309,9 @@ function SitzplanAdmin(){
               </div>
             ))}
           </div>
+          {flipped&&<div style={{width:20,flexShrink:0,display:"flex",alignItems:"stretch"}}>
+            <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",fontSize:10,color:"#5599cc",letterSpacing:2,background:"#0d2040",border:"1px solid #3366aa",borderRadius:6,padding:"10px 3px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>🪟 FENSTER</div>
+          </div>}
         </div>
 
         {flipped&&<TafelBar/>}
