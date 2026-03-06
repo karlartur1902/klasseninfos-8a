@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sitzplan Admin – 8A</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a1a2e; color: #e8e0d0; font-family: Georgia, serif; }
+    .back-link {
+      position: fixed; top: 14px; left: 16px; z-index: 100;
+      color: #c9a84c; font-size: 13px; text-decoration: none;
+      background: #0d1020cc; border: 1px solid #c9a84c44;
+      border-radius: 6px; padding: 6px 12px;
+    }
+    .back-link:hover { background: #c9a84c22; }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="index.html">← Klasseninfos</a>
+  <div id="root"></div>
+
+<script type="text/babel">
+const { useState, useCallback, useEffect } = React;
+
+const API_URL = "https://script.google.com/macros/s/AKfycbxLIoQW3X4m-DHnHPFluK0uA79493EoSzO6ZNpACBaJkEE_2i0lrP4Za0aocjiegYf2gw/exec";
+
+const STUDENTS = [
+  "Miroslava","Fabiyana","Viktor","Elias","Perla","Angelina","David",
+  "Mustafa","Bayram","Hayat","Rojin","Amina","Jan","Atina","Svetlin",
+  "Sophia","Sevdalina","Rusen","Zeki","Zhivko","Yilmaz","Hacimuhammet",
+  "Muhammed","Hasan","Anelisa","Yousif","Azusena"
+];
+
+const POSITIVE = {
+  "Miroslava":["Fabiyana"],"Elias":["Jan"],"Perla":["Amina"],
+  "David":["Sevdalina"],"Mustafa":["Hasan"],"Amina":["Perla"],
+  "Jan":["Elias"],"Svetlin":["Hacimuhammet"],"Sophia":["Yousif"],
+  "Yilmaz":["Yousif"],"Hacimuhammet":["Svetlin"],"Hasan":["Mustafa"],
+  "Yousif":[],"Sevdalina":["Azusena"],"Azusena":["Sevdalina"],
+};
+const NEGATIVE = {
+  "Elias":["David"],"Mustafa":["Perla"],"Jan":["Rusen"],
+  "Svetlin":["Sophia"],"Sophia":["Zhivko"],"Rusen":["Jan"],
+  "Yilmaz":["Perla"],"Hacimuhammet":["Zeki"],"Hasan":["Perla"],
+  "Azusena":["Jan"],"David":["Rojin"],"Sevdalina":["Atina"],
+};
+const BANS = new Set(["Zhivko|Muhammed","Muhammed|Zhivko","Yilmaz|Viktor","Viktor|Yilmaz"]);
+
+function isBanned(a,b){return BANS.has(`${a}|${b}`)||BANS.has(`${b}|${a}`);}
+function seatCoords(i){const r=Math.floor(i/6),c=i%6;return{x:Math.floor(c/2)*270+(c%2)*65,y:r*120};}
+function getRelationWeight(a,b){
+  const ra=Math.floor(a/6),ca=a%6,rb=Math.floor(b/6),cb=b%6;
+  const ta=Math.floor(ca/2),tb=Math.floor(cb/2),sa=ca%2,sb=cb%2;
+  if(ra===rb&&ta===tb)return 100;
+  const rd=Math.abs(ra-rb);
+  if(rd===1&&ta===tb)return sa===sb?40:60;
+  if(ra===rb&&Math.abs(ta-tb)===1)return 5;
+  const A=seatCoords(a),B=seatCoords(b);
+  const d=Math.sqrt((A.x-B.x)**2+(A.y-B.y)**2);
+  return d>0?100/d:0;
+}
+function getBanNeighbors(seat){
+  const row=Math.floor(seat/6),col=seat%6,table=Math.floor(col/2),side=col%2;
+  const n=[];
+  const p=side===0?seat+1:seat-1;if(p>=0&&p<30)n.push(p);
+  for(const dr of[-1,1]){const nr=row+dr;if(nr<0||nr>=5)continue;for(const nc of[col-1,col,col+1]){if(nc<0||nc>=6)continue;if(Math.floor(nc/2)===table)n.push(nr*6+nc);}}
+  if(side===1&&table<2)n.push(row*6+(col+1));
+  if(side===0&&table>0)n.push(row*6+(col-1));
+  return[...new Set(n)].filter(s=>s!==seat&&s>=0&&s<30);
+}
+const WINDOW_SEATS=new Set([0,6,12,18,24]);
+
+function scoreArrangement(arr){
+  let score=0,hv=0;
+  for(let i=0;i<30;i++){
+    const s1=arr[i];
+    if(!s1){hv+=(4-Math.floor(i/6))*80;continue;}
+    if(s1==="Atina"&&WINDOW_SEATS.has(i))hv+=1000;
+    for(let j=i+1;j<30;j++){
+      const s2=arr[j];if(!s2)continue;
+      const w=getRelationWeight(i,j);if(w<1)continue;
+      if(getBanNeighbors(i).includes(j)&&isBanned(s1,s2))hv+=1000;
+      if(w>=40){
+        if((POSITIVE[s1]||[]).includes(s2))score+=w*2;
+        if((POSITIVE[s2]||[]).includes(s1))score+=w*2;
+        if((NEGATIVE[s1]||[]).includes(s2))score-=w;
+        if((NEGATIVE[s2]||[]).includes(s1))score-=w;
+      }
+    }
+  }
+  return score-hv;
+}
+function optimize(iters=60000){
+  const seats=[...STUDENTS,null,null,null];
+  for(let i=seats.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[seats[i],seats[j]]=[seats[j],seats[i]];}
+  let cur=[...seats],curS=scoreArrangement(cur),best=[...cur],bestS=curS,temp=50;
+  const cool=Math.pow(0.0001/temp,1/iters);
+  for(let i=0;i<iters;i++){
+    const a=Math.floor(Math.random()*30),b=Math.floor(Math.random()*30);
+    const nxt=[...cur];[nxt[a],nxt[b]]=[nxt[b],nxt[a]];
+    const ns=scoreArrangement(nxt),d=ns-curS;
+    if(d>0||Math.random()<Math.exp(d/temp)){cur=nxt;curS=ns;if(curS>bestS){best=[...cur];bestS=curS;}}
+    temp*=cool;
+  }
+  return{arrangement:best,score:bestS};
+}
+function analyzeArrangement(arr){
+  const issues=[],positives=[];
+  for(let i=0;i<30;i++){
+    const s1=arr[i];if(!s1)continue;
+    if(s1==="Atina"&&WINDOW_SEATS.has(i))issues.push({type:"ban",s1:"Atina",s2:"Fensterplatz"});
+    for(const j of getBanNeighbors(i)){
+      if(j<=i)continue;const s2=arr[j];if(!s2)continue;
+      if(isBanned(s1,s2))issues.push({type:"ban",s1,s2});
+      const w=getRelationWeight(i,j);
+      if(w>=40){
+        if((NEGATIVE[s1]||[]).includes(s2)||(NEGATIVE[s2]||[]).includes(s1))issues.push({type:"neg",s1,s2,w});
+        if((POSITIVE[s1]||[]).includes(s2)||(POSITIVE[s2]||[]).includes(s1))positives.push({s1,s2,w});
+      }
+    }
+  }
+  return{issues,positives};
+}
+
+const ROW_LABELS=["Reihe 1 (vorne)","Reihe 2","Reihe 3","Reihe 4","Reihe 5 (hinten)"];
+
+function SitzplanAdmin(){
+  const[arrangement,setArrangement]=useState(null);
+  const[score,setScore]=useState(null);
+  const[running,setRunning]=useState(false);
+  const[publishing,setPublishing]=useState(false);
+  const[analysis,setAnalysis]=useState(null);
+  const[runs,setRuns]=useState(0);
+  const[flipped,setFlipped]=useState(false);
+  const[msg,setMsg]=useState(null);
+  const[dragSeat,setDragSeat]=useState(null);
+  const[publishedAt,setPublishedAt]=useState(null);
+
+  // Aktuell veröffentlichten Stand laden
+  useEffect(()=>{
+    fetch(API_URL+"?t="+Date.now(),{cache:"no-store",redirect:"follow"})
+      .then(r=>r.json())
+      .then(d=>{if(d.sitzplan?.savedAt)setPublishedAt(d.sitzplan.savedAt);})
+      .catch(()=>{});
+  },[]);
+
+  const flash=(text,duration=4000)=>{setMsg(text);setTimeout(()=>setMsg(null),duration);};
+
+  const run=useCallback(()=>{
+    setRunning(true);
+    setTimeout(()=>{
+      let best=null,bestScore=-Infinity;
+      for(let r=0;r<5;r++){const res=optimize(60000);if(res.score>bestScore){bestScore=res.score;best=res.arrangement;}}
+      setArrangement(best);setScore(bestScore);
+      setAnalysis(analyzeArrangement(best));setRuns(r=>r+1);setRunning(false);
+    },50);
+  },[]);
+
+  const publish=useCallback(async()=>{
+    if(!arrangement||publishing)return;
+    setPublishing(true);
+    try{
+      const r=await fetch(API_URL,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({arrangement}),
+        redirect:"follow",
+      });
+      const d=await r.json();
+      if(d.ok){
+        setPublishedAt(d.savedAt);
+        flash("✅ Plan veröffentlicht! Schüler sehen ihn jetzt auf sitzplan.html.");
+      } else {
+        flash("❌ Fehler: "+d.error);
+      }
+    }catch(e){
+      flash("❌ Netzwerkfehler: "+e.message);
+    }
+    setPublishing(false);
+  },[arrangement,publishing]);
+
+  const handleDragStart=useCallback((i)=>setDragSeat(i),[]);
+  const handleDrop=useCallback((i)=>{
+    if(dragSeat===null||dragSeat===i){setDragSeat(null);return;}
+    const next=[...arrangement];[next[dragSeat],next[i]]=[next[i],next[dragSeat]];
+    setArrangement(next);setScore(scoreArrangement(next));setAnalysis(analyzeArrangement(next));setDragSeat(null);
+  },[dragSeat,arrangement]);
+
+  const studentAt=(row,col)=>arrangement?(arrangement[row*6+col]||"—"):"?";
+
+  return(
+    <div style={{minHeight:"100vh",background:"#1a1a2e",color:"#e8e0d0",fontFamily:"Georgia,serif",padding:"24px 16px 60px"}}>
+      <h1 style={{textAlign:"center",fontSize:24,color:"#c9a84c",marginBottom:4,marginTop:28}}>
+        Sitzplan-Optimierer <span style={{fontSize:13,color:"#555",fontWeight:"normal"}}>Admin</span>
+      </h1>
+      <p style={{textAlign:"center",color:"#555",fontSize:12,marginBottom:6}}>8A · 27 Schüler · 15 Tische</p>
+
+      {publishedAt&&(
+        <p style={{textAlign:"center",color:"#5a8a5a",fontSize:12,marginBottom:20}}>
+          📢 Aktuell veröffentlicht: {new Date(publishedAt).toLocaleDateString("de-DE")} {new Date(publishedAt).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})} Uhr
+        </p>
+      )}
+
+      {/* Controls */}
+      <div style={{textAlign:"center",marginBottom:28,display:"flex",flexWrap:"wrap",justifyContent:"center",gap:10,alignItems:"center"}}>
+        <button onClick={run} disabled={running} style={{
+          background:running?"#444":"#c9a84c",color:running?"#888":"#1a1a2e",
+          border:"none",borderRadius:6,padding:"11px 28px",fontSize:14,
+          fontWeight:"bold",cursor:running?"not-allowed":"pointer",fontFamily:"Georgia,serif",
+        }}>{running?"Optimiere…":runs===0?"Sitzplan erstellen":"Nochmal optimieren"}</button>
+
+        {arrangement&&(
+          <button onClick={()=>setFlipped(f=>!f)} style={{
+            background:"transparent",color:"#c9a84c",border:"1px solid #c9a84c",
+            borderRadius:6,padding:"11px 18px",fontSize:13,cursor:"pointer",fontFamily:"Georgia,serif",
+          }}>{flipped?"🎓 Schülersicht":"👁 Lehrersicht"}</button>
+        )}
+
+        {arrangement&&(
+          <button onClick={publish} disabled={publishing} style={{
+            background:publishing?"#333":"#2a6a2a",
+            color:publishing?"#666":"#90ee90",
+            border:"1px solid "+(publishing?"#444":"#4a9a4a"),
+            borderRadius:6,padding:"11px 22px",fontSize:13,fontWeight:"bold",
+            cursor:publishing?"not-allowed":"pointer",fontFamily:"Georgia,serif",
+          }}>
+            {publishing?"Wird veröffentlicht…":"📢 Für Schüler veröffentlichen"}
+          </button>
+        )}
+
+        {msg&&<span style={{fontSize:13,color:msg.startsWith("✅")?"#88ff88":"#ff8888",maxWidth:300,display:"inline-block"}}>{msg}</span>}
+        {score!==null&&<span style={{color:"#444",fontSize:12}}>Score: {score.toFixed(0)} · #{runs}</span>}
+      </div>
+
+      {!arrangement&&(
+        <div style={{textAlign:"center",color:"#444",marginTop:60,fontSize:14}}>
+          Klick auf „Sitzplan erstellen" um zu starten.<br/>
+          <span style={{fontSize:12,color:"#333",marginTop:8,display:"block"}}>
+            Der Algorithmus läuft 5× und nimmt das beste Ergebnis.<br/>
+            Danach kannst du per Drag & Drop manuell anpassen<br/>
+            und den Plan mit „📢 Für Schüler veröffentlichen" ins Sheet speichern.
+          </span>
+        </div>
+      )}
+
+      {arrangement&&(<>
+        {!flipped&&<TafelBar/>}
+
+        <div style={{maxWidth:780,margin:"0 auto 20px",display:"flex",gap:8}}>
+          {/* Fenster */}
+          <div style={{width:20,display:"flex",alignItems:"stretch"}}>
+            <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",fontSize:10,color:"#5599cc",letterSpacing:2,background:"#0d2040",border:"1px solid #3366aa",borderRadius:6,padding:"10px 3px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>🪟 FENSTER</div>
+          </div>
+
+          <div style={{flex:1}}>
+            {(flipped?[4,3,2,1,0]:[0,1,2,3,4]).map(row=>(
+              <div key={row} style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:"#555",marginBottom:3,textAlign:"right"}}>{ROW_LABELS[row]}</div>
+                <div style={{display:"flex",gap:12,justifyContent:"center"}}>
+                  {(flipped?[2,1,0]:[0,1,2]).map(table=>(
+                    <div key={table} style={{display:"flex",gap:2,background:"#16213e",border:"1px solid #2a3a5e",borderRadius:6,padding:"5px 8px",flex:1,maxWidth:220}}>
+                      {(flipped?[1,0]:[0,1]).map(side=>{
+                        const col=table*2+side,name=studentAt(row,col),realIdx=row*6+col;
+                        const banN=getBanNeighbors(realIdx);
+                        let hasBan=false,hasNeg=false,hasPos=false;
+                        banN.forEach(j=>{const s2=arrangement[j];if(!s2||name==="—")return;
+                          if(isBanned(name,s2))hasBan=true;
+                          const w=getRelationWeight(realIdx,j);
+                          if(w>=40){
+                            if((NEGATIVE[name]||[]).includes(s2)||(NEGATIVE[s2]||[]).includes(name))hasNeg=true;
+                            if((POSITIVE[name]||[]).includes(s2)||(POSITIVE[s2]||[]).includes(name))hasPos=true;
+                          }
+                        });
+                        const isWin=col===0,atinaWin=name==="Atina"&&isWin,isDrag=dragSeat===realIdx;
+                        return(
+                          <div key={side} draggable
+                            onDragStart={()=>handleDragStart(realIdx)}
+                            onDragOver={e=>e.preventDefault()}
+                            onDrop={()=>handleDrop(realIdx)}
+                            onDragEnd={()=>setDragSeat(null)}
+                            style={{flex:1,textAlign:"center",padding:"7px 3px",borderRadius:4,cursor:"grab",
+                              userSelect:"none",fontSize:12,transition:"background 0.1s",
+                              borderLeft:side===1?"1px solid #2a3a5e":"none",
+                              borderTop:isWin?"2px solid #3366aa":"none",
+                              opacity:isDrag?0.4:1,
+                              background:isDrag?"#c9a84c22":atinaWin||hasBan?"#5a1a1a":hasNeg?"#3a2a1a":hasPos?"#1a3a1a":isWin?"#0d2236":"#0d1929",
+                              color:atinaWin||hasBan?"#ff6b6b":hasNeg?"#ffaa55":hasPos?"#66cc66":isWin?"#88bbdd":"#c8c0b0",
+                            }}
+                          >{name}</div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {flipped&&<TafelBar/>}
+
+        {/* Legende */}
+        <div style={{maxWidth:700,margin:"0 auto 16px",display:"flex",gap:14,justifyContent:"center",fontSize:12,flexWrap:"wrap"}}>
+          <span style={{color:"#66cc66"}}>■ Positive Präferenz</span>
+          <span style={{color:"#ffaa55"}}>■ Negative verletzt</span>
+          <span style={{color:"#ff6b6b"}}>■ Sperre verletzt</span>
+          <span style={{color:"#444"}}>· Drag & Drop zum Tauschen</span>
+        </div>
+
+        {/* Analyse */}
+        {analysis&&(
+          <div style={{maxWidth:700,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:200,background:"#16213e",borderRadius:8,padding:14}}>
+              <h3 style={{color:"#66cc66",fontSize:13,marginBottom:8}}>✓ Matches ({analysis.positives.length})</h3>
+              {analysis.positives.length===0&&<p style={{color:"#555",fontSize:12}}>—</p>}
+              {analysis.positives.map((p,i)=>(
+                <div key={i} style={{fontSize:12,color:"#90c080",marginBottom:3}}>
+                  {p.s1} ↔ {p.s2} <span style={{color:"#444"}}>({p.w>=100?"Tisch":p.w>=60?"schräg":"dahinter"})</span>
+                </div>
+              ))}
+            </div>
+            <div style={{flex:1,minWidth:200,background:"#16213e",borderRadius:8,padding:14}}>
+              <h3 style={{color:"#ff9966",fontSize:13,marginBottom:8}}>⚠ Probleme ({analysis.issues.length})</h3>
+              {analysis.issues.length===0&&<p style={{color:"#66cc66",fontSize:12}}>Keine!</p>}
+              {analysis.issues.map((p,i)=>(
+                <div key={i} style={{fontSize:12,color:p.type==="ban"?"#ff6b6b":"#ffaa55",marginBottom:3}}>
+                  {p.type==="ban"?"🚫 ":"— "}{p.s1} ↔ {p.s2}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </>)}
+    </div>
+  );
+}
+
+function TafelBar(){
+  return <div style={{background:"#2d5a27",borderRadius:8,textAlign:"center",padding:"8px",fontSize:13,color:"#90c080",letterSpacing:3,maxWidth:700,margin:"0 auto 14px"}}>TAFEL / LEHRER</div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<SitzplanAdmin/>);
+</script>
+</body>
+</html>

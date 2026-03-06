@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sitzplan 8A</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #f7f8fa;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      padding: 20px 16px 48px;
+      max-width: 780px;
+      margin: 0 auto;
+    }
+    .back-link {
+      display: inline-block; color: #555; font-size: 13px;
+      text-decoration: none; margin-bottom: 18px;
+    }
+    .back-link:hover { color: #222; }
+    h1 { font-size: 1.3rem; margin-bottom: 4px; }
+    .sub { color: #777; font-size: 0.9rem; margin-bottom: 20px; }
+
+    .tafel {
+      background: #2d5a27; border-radius: 8px; text-align: center;
+      padding: 8px; font-size: 12px; color: #90c080; letter-spacing: 3px;
+      margin-bottom: 14px;
+    }
+    .grid-wrap { display: flex; gap: 8px; margin-bottom: 16px; }
+    .fenster-label { width: 18px; display: flex; align-items: stretch; }
+    .fenster-inner {
+      writing-mode: vertical-rl; transform: rotate(180deg);
+      font-size: 10px; color: #5599cc; letter-spacing: 2px;
+      background: #e8f0fb; border: 1px solid #b0c8ee;
+      border-radius: 6px; padding: 10px 3px; flex: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rows { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .row-label { font-size: 11px; color: #aaa; text-align: right; margin-bottom: 3px; }
+    .tables-row { display: flex; gap: 10px; justify-content: center; }
+    .table-pair {
+      display: flex; gap: 0; flex: 1; max-width: 220px;
+      background: #fff; border: 1px solid #e0e4ec;
+      border-radius: 8px; padding: 5px 8px;
+      box-shadow: 0 1px 3px #0001;
+    }
+    .seat {
+      flex: 1; text-align: center; padding: 8px 4px;
+      border-radius: 4px; font-size: 13px; font-weight: 600;
+      background: #f0f2f7; color: #333;
+    }
+    .seat.window-seat { background: #e8f2fb; color: #2a6090; border-top: 2px solid #7ab0d8; }
+    .seat.empty { color: #ccc; font-weight: 400; }
+    .seat + .seat { border-left: 1px solid #e8eaf0; }
+
+    .no-plan {
+      text-align: center; padding: 60px 20px; color: #999;
+    }
+    .no-plan .icon { font-size: 3rem; margin-bottom: 12px; }
+    .updated { font-size: 11px; color: #bbb; margin-top: 14px; text-align: right; }
+    .loading { color: #aaa; font-size: 14px; text-align: center; padding: 40px; }
+
+    @media (max-width: 480px) {
+      .seat { font-size: 11px; padding: 6px 2px; }
+      .table-pair { padding: 4px 5px; }
+      .tables-row { gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="index.html">← Klasseninfos</a>
+  <h1>🪑 Sitzplan 8A</h1>
+  <div class="sub" id="subtitle">Wird geladen…</div>
+  <div id="content"><div class="loading">Lade…</div></div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxLIoQW3X4m-DHnHPFluK0uA79493EoSzO6ZNpACBaJkEE_2i0lrP4Za0aocjiegYf2gw/exec";
+const CACHE_KEY = "sitzplan_cache";
+const ROW_LABELS = ["Reihe 1 (vorne)","Reihe 2","Reihe 3","Reihe 4","Reihe 5 (hinten)"];
+
+function render(arrangement, savedAt) {
+  document.getElementById("subtitle").textContent = "15 Tische · 27 Schüler";
+  let html = `<div class="tafel">TAFEL / LEHRER</div><div class="grid-wrap">`;
+  html += `<div class="fenster-label"><div class="fenster-inner">🪟 FENSTER</div></div>`;
+  html += `<div class="rows">`;
+  for (let row = 0; row < 5; row++) {
+    html += `<div><div class="row-label">${ROW_LABELS[row]}</div><div class="tables-row">`;
+    for (let table = 0; table < 3; table++) {
+      html += `<div class="table-pair">`;
+      for (let side = 0; side < 2; side++) {
+        const col = table * 2 + side;
+        const name = arrangement[row * 6 + col];
+        const isWin = col === 0;
+        const cls = !name ? "seat empty" : isWin ? "seat window-seat" : "seat";
+        html += `<div class="${cls}">${name || "—"}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div></div>`;
+  }
+  html += `</div></div>`;
+  if (savedAt) {
+    const d = new Date(savedAt);
+    html += `<div class="updated">Stand: ${d.toLocaleDateString("de-DE")} ${d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})} Uhr</div>`;
+  }
+  document.getElementById("content").innerHTML = html;
+}
+
+function showEmpty() {
+  document.getElementById("subtitle").textContent = "";
+  document.getElementById("content").innerHTML = `
+    <div class="no-plan">
+      <div class="icon">🪑</div>
+      <div>Noch kein Sitzplan veröffentlicht.</div>
+    </div>`;
+}
+
+async function main() {
+  // Sofort aus Cache zeigen
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const c = JSON.parse(raw);
+      if (c.arrangement) render(c.arrangement, c.savedAt);
+    }
+  } catch(e) {}
+
+  // Dann frisch von API laden
+  try {
+    const url = API_URL + "?t=" + Date.now();
+    const r = await fetch(url, { cache: "no-store", redirect: "follow" });
+    const d = JSON.parse(await r.text());
+
+    if (d.sitzplan && d.sitzplan.arrangement) {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(d.sitzplan));
+      render(d.sitzplan.arrangement, d.sitzplan.savedAt);
+    } else {
+      if (!localStorage.getItem(CACHE_KEY)) showEmpty();
+    }
+  } catch(e) {
+    if (!localStorage.getItem(CACHE_KEY)) showEmpty();
+  }
+}
+
+main();
+</script>
+</body>
+</html>
