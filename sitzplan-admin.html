@@ -17,6 +17,10 @@
       border-radius: 6px; padding: 6px 12px;
     }
     .back-link:hover { background: #c9a84c22; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
   </style>
 </head>
 <body>
@@ -27,9 +31,8 @@
 const { useState, useCallback, useEffect } = React;
 
 const API_URL  = "https://script.google.com/macros/s/AKfycbxLIoQW3X4m-DHnHPFluK0uA79493EoSzO6ZNpACBaJkEE_2i0lrP4Za0aocjiegYf2gw/exec";
-// PIN als SHA-256-Hash. Standard: "1234"
-// Zum Ändern: https://emn178.github.io/online-tools/sha256.html → Hash hier eintragen
-const PIN_HASH = "4030c42b313a82b953d14f04a85ff9dd9739e49a97d90631b7fb3029cca1d6e1";
+// PIN als SHA-256-Hash – zum Ändern: https://emn178.github.io/online-tools/sha256.html
+const PIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
 
 async function hashPin(pin) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pin));
@@ -43,100 +46,268 @@ const STUDENTS = [
   "Muhammed","Hasan","Anelisa","Yousif","Azusena"
 ];
 
-const POSITIVE = {
-  "Miroslava":["Fabiyana"],"Elias":["Jan"],"Perla":["Amina"],
-  "David":["Sevdalina"],"Mustafa":["Hasan"],"Amina":["Perla"],
-  "Jan":["Elias"],"Svetlin":["Hacimuhammet"],"Sophia":["Yousif"],
-  "Yilmaz":["Yousif"],"Hacimuhammet":["Svetlin"],"Hasan":["Mustafa"],
-  "Yousif":[],"Sevdalina":["Azusena"],"Azusena":["Sevdalina"],
-};
-const NEGATIVE = {
-  "Elias":["David"],"Mustafa":["Perla"],"Jan":["Rusen"],
-  "Svetlin":["Sophia"],"Sophia":["Zhivko"],"Rusen":["Jan"],
-  "Yilmaz":["Perla"],"Hacimuhammet":["Zeki"],"Hasan":["Perla"],
-  "Azusena":["Jan"],"David":["Rojin"],"Sevdalina":["Atina"],
-};
-const BANS = new Set(["Zhivko|Muhammed","Muhammed|Zhivko","Yilmaz|Viktor","Viktor|Yilmaz"]);
+const ROW_LABELS   = ["Reihe 1 (vorne)","Reihe 2","Reihe 3","Reihe 4","Reihe 5 (hinten)"];
+const VORNE_LABELS = ["Egal","Leicht vorne bevorzugt","Reihe 5 meiden","Reihen 4–5 meiden","Nur Reihen 1–2"];
+// For vorne level v: rows >= VORNE_EXCLUDE[v] are hard-excluded
+const VORNE_EXCLUDE = {0:999, 1:999, 2:4, 3:3, 4:2};
+const WINDOW_SEATS  = new Set([0,6,12,18,24]);
 
-function isBanned(a,b){return BANS.has(`${a}|${b}`)||BANS.has(`${b}|${a}`);}
-function seatCoords(i){const r=Math.floor(i/6),c=i%6;return{x:Math.floor(c/2)*270+(c%2)*65,y:r*120};}
-function getRelationWeight(a,b){
+// ===== GEOMETRY =====
+function seatCoords(i) {
+  const r=Math.floor(i/6),c=i%6;
+  return {x:Math.floor(c/2)*270+(c%2)*65, y:r*120};
+}
+function getRelationWeight(a,b) {
   const ra=Math.floor(a/6),ca=a%6,rb=Math.floor(b/6),cb=b%6;
   const ta=Math.floor(ca/2),tb=Math.floor(cb/2),sa=ca%2,sb=cb%2;
-  if(ra===rb&&ta===tb)return 100;
+  if(ra===rb&&ta===tb) return 100;
   const rd=Math.abs(ra-rb);
-  if(rd===1&&ta===tb)return sa===sb?40:60;
-  if(ra===rb&&Math.abs(ta-tb)===1)return 5;
+  if(rd===1&&ta===tb) return sa===sb?40:60;
+  if(ra===rb&&Math.abs(ta-tb)===1) return 5;
   const A=seatCoords(a),B=seatCoords(b);
   const d=Math.sqrt((A.x-B.x)**2+(A.y-B.y)**2);
   return d>0?100/d:0;
 }
-function getBanNeighbors(seat){
+function getBanNeighbors(seat) {
   const row=Math.floor(seat/6),col=seat%6,table=Math.floor(col/2),side=col%2;
   const n=[];
-  const p=side===0?seat+1:seat-1;if(p>=0&&p<30)n.push(p);
-  for(const dr of[-1,1]){const nr=row+dr;if(nr<0||nr>=5)continue;for(const nc of[col-1,col,col+1]){if(nc<0||nc>=6)continue;if(Math.floor(nc/2)===table)n.push(nr*6+nc);}}
-  if(side===1&&table<2)n.push(row*6+(col+1));
-  if(side===0&&table>0)n.push(row*6+(col-1));
-  return[...new Set(n)].filter(s=>s!==seat&&s>=0&&s<30);
+  const p=side===0?seat+1:seat-1; if(p>=0&&p<30) n.push(p);
+  for(const dr of[-1,1]) {
+    const nr=row+dr; if(nr<0||nr>=5) continue;
+    for(const nc of[col-1,col,col+1]) {
+      if(nc<0||nc>=6) continue;
+      if(Math.floor(nc/2)===table) n.push(nr*6+nc);
+    }
+  }
+  if(side===1&&table<2) n.push(row*6+(col+1));
+  if(side===0&&table>0) n.push(row*6+(col-1));
+  return [...new Set(n)].filter(s=>s!==seat&&s>=0&&s<30);
 }
-const WINDOW_SEATS=new Set([0,6,12,18,24]);
 
-function scoreArrangement(arr){
-  let score=0,hv=0;
-  for(let i=0;i<30;i++){
+// ===== ALGORITHM =====
+function scoreArrangement(arr, praef) {
+  let score=0, hv=0;
+  for(let i=0;i<30;i++) {
     const s1=arr[i];
-    if(!s1){hv+=(4-Math.floor(i/6))*80;continue;}
-    if(s1==="Atina"&&WINDOW_SEATS.has(i))hv+=1000;
-    for(let j=i+1;j<30;j++){
-      const s2=arr[j];if(!s2)continue;
-      const w=getRelationWeight(i,j);if(w<1)continue;
-      if(getBanNeighbors(i).includes(j)&&isBanned(s1,s2))hv+=1000;
-      if(w>=40){
-        if((POSITIVE[s1]||[]).includes(s2))score+=w*2;
-        if((POSITIVE[s2]||[]).includes(s1))score+=w*2;
-        if((NEGATIVE[s1]||[]).includes(s2))score-=w;
-        if((NEGATIVE[s2]||[]).includes(s1))score-=w;
+    if(!s1) { hv+=(4-Math.floor(i/6))*80; continue; }
+    const p1=praef[s1]||{};
+    const row=Math.floor(i/6);
+    if(s1==="Atina"&&WINDOW_SEATS.has(i)) hv+=2000;
+    if((p1.sitz_ausschluss||[]).includes(i)) hv+=1500;
+    if(p1.vorne>0) {
+      const excRow=VORNE_EXCLUDE[p1.vorne];
+      if(row>=excRow) hv+=1500;
+      else score-=row*60;
+    }
+    for(let j=i+1;j<30;j++) {
+      const s2=arr[j]; if(!s2) continue;
+      const w=getRelationWeight(i,j); if(w<1) continue;
+      const p2=praef[s2]||{};
+      const isNeighbor=getBanNeighbors(i).includes(j);
+      if(isNeighbor) {
+        if((p1.ban_lehrer||[]).includes(s2)||(p2.ban_lehrer||[]).includes(s1)) hv+=2000;
+        if((p1.ban_schueler||[]).includes(s2)||(p2.ban_schueler||[]).includes(s1)) hv+=800;
+      }
+      if(w>=40) {
+        if((p1.positiv||[]).includes(s2)||(p2.positiv||[]).includes(s1)) score+=w*2;
+        if((p1.negativ||[]).includes(s2)||(p2.negativ||[]).includes(s1)) score-=w;
       }
     }
   }
   return score-hv;
 }
-function optimize(iters=60000){
+function optimize(iters=60000, praef={}) {
   const seats=[...STUDENTS,null,null,null];
-  for(let i=seats.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[seats[i],seats[j]]=[seats[j],seats[i]];}
-  let cur=[...seats],curS=scoreArrangement(cur),best=[...cur],bestS=curS,temp=50;
+  for(let i=seats.length-1;i>0;i--) {
+    const j=Math.floor(Math.random()*(i+1)); [seats[i],seats[j]]=[seats[j],seats[i]];
+  }
+  let cur=[...seats],curS=scoreArrangement(cur,praef),best=[...cur],bestS=curS,temp=50;
   const cool=Math.pow(0.0001/temp,1/iters);
-  for(let i=0;i<iters;i++){
+  for(let i=0;i<iters;i++) {
     const a=Math.floor(Math.random()*30),b=Math.floor(Math.random()*30);
-    const nxt=[...cur];[nxt[a],nxt[b]]=[nxt[b],nxt[a]];
-    const ns=scoreArrangement(nxt),d=ns-curS;
-    if(d>0||Math.random()<Math.exp(d/temp)){cur=nxt;curS=ns;if(curS>bestS){best=[...cur];bestS=curS;}}
+    const nxt=[...cur]; [nxt[a],nxt[b]]=[nxt[b],nxt[a]];
+    const ns=scoreArrangement(nxt,praef),d=ns-curS;
+    if(d>0||Math.random()<Math.exp(d/temp)) {
+      cur=nxt; curS=ns; if(curS>bestS){best=[...cur];bestS=curS;}
+    }
     temp*=cool;
   }
-  return{arrangement:best,score:bestS};
+  return {arrangement:best,score:bestS};
 }
-function analyzeArrangement(arr){
-  const issues=[],positives=[];
-  for(let i=0;i<30;i++){
-    const s1=arr[i];if(!s1)continue;
-    if(s1==="Atina"&&WINDOW_SEATS.has(i))issues.push({type:"ban",s1:"Atina",s2:"Fensterplatz"});
-    for(const j of getBanNeighbors(i)){
-      if(j<=i)continue;const s2=arr[j];if(!s2)continue;
-      if(isBanned(s1,s2))issues.push({type:"ban",s1,s2});
+function analyzeArrangement(arr, praef) {
+  const issues=[], positives=[];
+  for(let i=0;i<30;i++) {
+    const s1=arr[i]; if(!s1) continue;
+    const p1=praef[s1]||{};
+    const row=Math.floor(i/6);
+    if(s1==="Atina"&&WINDOW_SEATS.has(i)) issues.push({type:"lehrer_ban",s1:"Atina",s2:"Fensterplatz"});
+    if((p1.sitz_ausschluss||[]).includes(i)) issues.push({type:"sitz",s1,s2:`Platz ${i+1}`});
+    if(p1.vorne>0&&row>=VORNE_EXCLUDE[p1.vorne]) issues.push({type:"vorne",s1,s2:`Reihe ${row+1}`});
+    for(const j of getBanNeighbors(i)) {
+      if(j<=i) continue;
+      const s2=arr[j]; if(!s2) continue;
+      const p2=praef[s2]||{};
+      if((p1.ban_lehrer||[]).includes(s2)||(p2.ban_lehrer||[]).includes(s1)) issues.push({type:"lehrer_ban",s1,s2});
+      if((p1.ban_schueler||[]).includes(s2)||(p2.ban_schueler||[]).includes(s1)) issues.push({type:"schueler_ban",s1,s2});
       const w=getRelationWeight(i,j);
-      if(w>=40){
-        if((NEGATIVE[s1]||[]).includes(s2)||(NEGATIVE[s2]||[]).includes(s1))issues.push({type:"neg",s1,s2,w});
-        if((POSITIVE[s1]||[]).includes(s2)||(POSITIVE[s2]||[]).includes(s1))positives.push({s1,s2,w});
+      if(w>=40) {
+        if((p1.negativ||[]).includes(s2)||(p2.negativ||[]).includes(s1)) issues.push({type:"neg",s1,s2,w});
+        if((p1.positiv||[]).includes(s2)||(p2.positiv||[]).includes(s1)) positives.push({s1,s2,w});
       }
     }
   }
-  return{issues,positives};
+  return {issues,positives};
 }
 
-const ROW_LABELS=["Reihe 1 (vorne)","Reihe 2","Reihe 3","Reihe 4","Reihe 5 (hinten)"];
+// ===== SHARED COMPONENTS =====
+function TafelBar() {
+  return <div style={{background:"#2d5a27",borderRadius:8,textAlign:"center",padding:"8px",fontSize:13,color:"#90c080",letterSpacing:3,maxWidth:700,margin:"0 auto 14px"}}>TAFEL / LEHRER</div>;
+}
+function FensterBar() {
+  return (
+    <div style={{width:20,flexShrink:0,display:"flex",alignItems:"stretch"}}>
+      <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",fontSize:10,color:"#5599cc",letterSpacing:2,background:"#0d2040",border:"1px solid #3366aa",borderRadius:6,padding:"10px 3px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>🪟 FENSTER</div>
+    </div>
+  );
+}
+function PrefSection({title,color,children}) {
+  return (
+    <div style={{background:"#16213e",borderRadius:8,padding:14,marginBottom:10,borderLeft:`3px solid ${color}`}}>
+      <div style={{color,fontSize:13,fontWeight:"bold",marginBottom:8}}>{title}</div>
+      {children}
+    </div>
+  );
+}
+function ChipList({items,onRemove,students,self,onAdd,color}) {
+  const [adding,setAdding]=useState(false);
+  const available=students.filter(s=>s!==self&&!items.includes(s)).sort();
+  return (
+    <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+      {items.map(name=>(
+        <span key={name} style={{background:"#0d1929",border:`1px solid ${color}55`,borderRadius:20,padding:"3px 10px 3px 12px",fontSize:12,color,display:"inline-flex",alignItems:"center",gap:5}}>
+          {name}
+          <span onClick={()=>onRemove(name)} style={{cursor:"pointer",color:"#888",fontSize:14,lineHeight:1}}>×</span>
+        </span>
+      ))}
+      {available.length>0&&(adding?(
+        <select autoFocus onChange={e=>{if(e.target.value){onAdd(e.target.value);setAdding(false);}}} onBlur={()=>setAdding(false)}
+          style={{background:"#0d1929",color:"#e8e0d0",border:`1px solid ${color}`,borderRadius:6,padding:"4px 8px",fontSize:12,fontFamily:"Georgia,serif"}}>
+          <option value="">Schüler wählen…</option>
+          {available.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+      ):(
+        <span onClick={()=>setAdding(true)} style={{border:`1px dashed ${color}44`,borderRadius:20,padding:"3px 10px",fontSize:12,color:"#555",cursor:"pointer"}}>+ hinzufügen</span>
+      ))}
+    </div>
+  );
+}
 
-function SitzplanAdmin(){
+// ===== SEAT MODAL =====
+function SeatModal({excluded,onChange,onClose}) {
+  const toggle=(i)=>{const s=new Set(excluded);if(s.has(i))s.delete(i);else s.add(i);onChange([...s].sort((a,b)=>a-b));};
+  const toggleRow=(row)=>{
+    const rs=[0,1,2,3,4,5].map(c=>row*6+c);
+    const allIn=rs.every(s=>excluded.includes(s));
+    const s=new Set(excluded);
+    rs.forEach(seat=>allIn?s.delete(seat):s.add(seat));
+    onChange([...s].sort((a,b)=>a-b));
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div style={{background:"#16213e",borderRadius:12,padding:20,width:420,maxWidth:"95vw"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <span style={{color:"#5599cc",fontWeight:"bold",fontSize:14}}>📍 Sitzplatz-Ausschlüsse</span>
+          <span onClick={onClose} style={{color:"#888",cursor:"pointer",fontSize:20,lineHeight:1}}>✕</span>
+        </div>
+        <div style={{fontSize:11,color:"#555",marginBottom:10}}>Platz anklicken = ausschließen · Zeilentaste = ganze Reihe</div>
+        <div style={{background:"#2d5a27",borderRadius:6,textAlign:"center",padding:"5px",fontSize:11,color:"#90c080",letterSpacing:2,marginBottom:8}}>TAFEL</div>
+        {[0,1,2,3,4].map(row=>(
+          <div key={row} style={{display:"flex",gap:4,marginBottom:4,alignItems:"stretch"}}>
+            <button onClick={()=>toggleRow(row)} style={{fontSize:10,color:"#5599cc",background:"#0d2040",border:"1px solid #3366aa",borderRadius:4,padding:"4px 0",cursor:"pointer",width:34,flexShrink:0,fontFamily:"Georgia,serif"}}>R{row+1}</button>
+            {[0,1,2].map(table=>(
+              <div key={table} style={{display:"flex",gap:2,flex:1,background:"#0d1929",borderRadius:4,padding:"3px"}}>
+                {[0,1].map(side=>{
+                  const idx=row*6+table*2+side;
+                  const excl=excluded.includes(idx);
+                  return (
+                    <div key={side} onClick={()=>toggle(idx)} style={{flex:1,textAlign:"center",padding:"7px 2px",borderRadius:3,cursor:"pointer",fontSize:10,fontWeight:600,userSelect:"none",background:excl?"#5a1a1a":"transparent",color:excl?"#ff6b6b":"#444",border:`1px solid ${excl?"#ff4444":"#1a2a3a"}`}}>
+                      {excl?"✕":idx+1}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        ))}
+        <div style={{marginTop:10,fontSize:12,color:excluded.length>0?"#5599cc":"#444"}}>
+          {excluded.length===0?"Keine Plätze ausgeschlossen":`${excluded.length} Platz/Plätze ausgeschlossen`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== SCHÜLER TAB =====
+function SchuelerTab({praeferenzen,setPraeferenzen,onSave,saving,dirty,setDirty}) {
+  const [selected,setSelected]=useState(STUDENTS.slice().sort()[0]);
+  const [showSeatModal,setShowSeatModal]=useState(false);
+  const prefs=praeferenzen[selected]||{};
+  function update(patch) {
+    setPraeferenzen(prev=>({...prev,[selected]:{...(prev[selected]||{}),...patch}}));
+    setDirty(true);
+  }
+  const addTo=(key,name)=>update({[key]:[...(prefs[key]||[]),name]});
+  const removeFrom=(key,name)=>update({[key]:(prefs[key]||[]).filter(n=>n!==name)});
+  return (
+    <div style={{maxWidth:680,margin:"0 auto",padding:"0 8px"}}>
+      <select value={selected} onChange={e=>setSelected(e.target.value)} style={{width:"100%",background:"#16213e",color:"#e8e0d0",border:"1px solid #2a3a5e",borderRadius:8,padding:"10px 14px",fontSize:14,marginBottom:16,fontFamily:"Georgia,serif"}}>
+        {STUDENTS.slice().sort().map(s=><option key={s} value={s}>{s}</option>)}
+      </select>
+
+      <PrefSection title="✓ Positive Präferenzen" color="#66cc66">
+        <ChipList items={prefs.positiv||[]} onRemove={n=>removeFrom("positiv",n)} students={STUDENTS} self={selected} onAdd={n=>addTo("positiv",n)} color="#66cc66"/>
+      </PrefSection>
+      <PrefSection title="— Negative Präferenzen" color="#ffaa55">
+        <ChipList items={prefs.negativ||[]} onRemove={n=>removeFrom("negativ",n)} students={STUDENTS} self={selected} onAdd={n=>addTo("negativ",n)} color="#ffaa55"/>
+      </PrefSection>
+      <PrefSection title="⚠ Schüler-Sperre" color="#ff9966">
+        <div style={{fontSize:11,color:"#555",marginBottom:8}}>Von Schüler gemeldet – stark, aber überwindbar</div>
+        <ChipList items={prefs.ban_schueler||[]} onRemove={n=>removeFrom("ban_schueler",n)} students={STUDENTS} self={selected} onAdd={n=>addTo("ban_schueler",n)} color="#ff9966"/>
+      </PrefSection>
+      <PrefSection title="🚫 Lehrer-Sperre" color="#ff6b6b">
+        <div style={{fontSize:11,color:"#555",marginBottom:8}}>Absolut – wird niemals verletzt</div>
+        <ChipList items={prefs.ban_lehrer||[]} onRemove={n=>removeFrom("ban_lehrer",n)} students={STUDENTS} self={selected} onAdd={n=>addTo("ban_lehrer",n)} color="#ff6b6b"/>
+      </PrefSection>
+      <PrefSection title="📍 Sitzplatz-Ausschlüsse" color="#5599cc">
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <button onClick={()=>setShowSeatModal(true)} style={{background:"#0d2040",border:"1px solid #3366aa",borderRadius:6,color:"#88bbdd",padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif"}}>Plätze auswählen 📍</button>
+          <span style={{fontSize:12,color:(prefs.sitz_ausschluss||[]).length>0?"#5599cc":"#444"}}>
+            {(prefs.sitz_ausschluss||[]).length===0?"Keine Ausschlüsse":`Plätze: ${(prefs.sitz_ausschluss||[]).map(i=>i+1).join(", ")}`}
+          </span>
+        </div>
+      </PrefSection>
+      <PrefSection title="⬆ Position im Raum" color="#c9a84c">
+        <input type="range" min={0} max={4} value={prefs.vorne||0} onChange={e=>update({vorne:Number(e.target.value)})} style={{width:"100%",accentColor:"#c9a84c",marginBottom:6}}/>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#444",marginBottom:4}}>
+          <span>Egal</span><span>Nur vorne</span>
+        </div>
+        <div style={{textAlign:"center",fontSize:12,color:"#c9a84c"}}>{VORNE_LABELS[prefs.vorne||0]}</div>
+      </PrefSection>
+
+      <div style={{textAlign:"center",marginTop:20,marginBottom:40}}>
+        <button onClick={onSave} disabled={saving||!dirty} style={{background:(!dirty||saving)?"#333":"#2a6a2a",color:(!dirty||saving)?"#555":"#90ee90",border:`1px solid ${(!dirty||saving)?"#444":"#4a9a4a"}`,borderRadius:8,padding:"11px 32px",fontSize:14,fontWeight:"bold",cursor:(!dirty||saving)?"not-allowed":"pointer",fontFamily:"Georgia,serif"}}>
+          {saving?"Speichere…":"💾 Alle Präferenzen speichern"}
+        </button>
+        {dirty&&<div style={{fontSize:11,color:"#886600",marginTop:8}}>● Ungespeicherte Änderungen</div>}
+      </div>
+
+      {showSeatModal&&<SeatModal excluded={prefs.sitz_ausschluss||[]} onChange={seats=>update({sitz_ausschluss:seats})} onClose={()=>setShowSeatModal(false)}/>}
+    </div>
+  );
+}
+
+// ===== OPTIMIZER TAB =====
+function OptimizerTab({praeferenzen,publishedAt,setPublishedAt}) {
   const[arrangement,setArrangement]=useState(null);
   const[score,setScore]=useState(null);
   const[running,setRunning]=useState(false);
@@ -146,48 +317,29 @@ function SitzplanAdmin(){
   const[flipped,setFlipped]=useState(false);
   const[msg,setMsg]=useState(null);
   const[dragSeat,setDragSeat]=useState(null);
-  const[publishedAt,setPublishedAt]=useState(null);
 
-  // Aktuell veröffentlichten Stand laden
-  useEffect(()=>{
-    fetch(API_URL+"?t="+Date.now(),{cache:"no-store",redirect:"follow"})
-      .then(r=>r.json())
-      .then(d=>{if(d.sitzplan?.savedAt)setPublishedAt(d.sitzplan.savedAt);})
-      .catch(()=>{});
-  },[]);
-
-  const flash=(text,duration=4000)=>{setMsg(text);setTimeout(()=>setMsg(null),duration);};
+  const flash=(text,dur=4000)=>{setMsg(text);setTimeout(()=>setMsg(null),dur);};
 
   const run=useCallback(()=>{
     setRunning(true);
     setTimeout(()=>{
       let best=null,bestScore=-Infinity;
-      for(let r=0;r<5;r++){const res=optimize(60000);if(res.score>bestScore){bestScore=res.score;best=res.arrangement;}}
+      for(let r=0;r<5;r++){const res=optimize(60000,praeferenzen);if(res.score>bestScore){bestScore=res.score;best=res.arrangement;}}
       setArrangement(best);setScore(bestScore);
-      setAnalysis(analyzeArrangement(best));setRuns(r=>r+1);setRunning(false);
+      setAnalysis(analyzeArrangement(best,praeferenzen));
+      setRuns(r=>r+1);setRunning(false);
     },50);
-  },[]);
+  },[praeferenzen]);
 
   const publish=useCallback(async()=>{
-    if(!arrangement||publishing)return;
+    if(!arrangement||publishing) return;
     setPublishing(true);
-    try{
-      // Kein Content-Type Header → kein CORS-Preflight → Apps Script akzeptiert den Request
-      const r=await fetch(API_URL,{
-        method:"POST",
-        body:JSON.stringify({arrangement}),
-        redirect:"follow",
-      });
+    try {
+      const r=await fetch(API_URL,{method:"POST",body:JSON.stringify({arrangement}),redirect:"follow"});
       const d=await r.json();
-      if(d.ok){
-        setPublishedAt(d.savedAt);
-        flash("✅ Plan veröffentlicht! Schüler sehen ihn jetzt auf sitzplan.html.");
-      } else {
-        flash("❌ Fehler: "+d.error);
-      }
-    }catch(e){
-      flash("❌ Netzwerkfehler: "+e.message);
-    }
+      if(d.ok){setPublishedAt(d.savedAt);flash("✅ Plan veröffentlicht!");}
+      else flash("❌ Fehler: "+d.error);
+    } catch(e){flash("❌ Netzwerkfehler: "+e.message);}
     setPublishing(false);
   },[arrangement,publishing]);
 
@@ -195,136 +347,87 @@ function SitzplanAdmin(){
   const handleDrop=useCallback((i)=>{
     if(dragSeat===null||dragSeat===i){setDragSeat(null);return;}
     const next=[...arrangement];[next[dragSeat],next[i]]=[next[i],next[dragSeat]];
-    setArrangement(next);setScore(scoreArrangement(next));setAnalysis(analyzeArrangement(next));setDragSeat(null);
-  },[dragSeat,arrangement]);
+    setArrangement(next);setScore(scoreArrangement(next,praeferenzen));setAnalysis(analyzeArrangement(next,praeferenzen));setDragSeat(null);
+  },[dragSeat,arrangement,praeferenzen]);
 
   const studentAt=(row,col)=>arrangement?(arrangement[row*6+col]||"—"):"?";
 
-  return(
-    <div style={{minHeight:"100vh",background:"#1a1a2e",color:"#e8e0d0",fontFamily:"Georgia,serif",padding:"24px 16px 60px"}}>
-      <h1 style={{textAlign:"center",fontSize:24,color:"#c9a84c",marginBottom:4,marginTop:28}}>
-        Sitzplan-Optimierer <span style={{fontSize:13,color:"#555",fontWeight:"normal"}}>Admin</span>
-      </h1>
-      <p style={{textAlign:"center",color:"#555",fontSize:12,marginBottom:6}}>8A · 27 Schüler · 15 Tische</p>
+  return (
+    <div>
+      {publishedAt&&<p style={{textAlign:"center",color:"#5a8a5a",fontSize:12,marginBottom:16}}>📢 Veröffentlicht: {new Date(publishedAt).toLocaleDateString("de-DE")} {new Date(publishedAt).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})} Uhr</p>}
 
-      {publishedAt&&(
-        <p style={{textAlign:"center",color:"#5a8a5a",fontSize:12,marginBottom:20}}>
-          📢 Aktuell veröffentlicht: {new Date(publishedAt).toLocaleDateString("de-DE")} {new Date(publishedAt).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})} Uhr
-        </p>
-      )}
-
-      {/* Controls */}
-      <div style={{textAlign:"center",marginBottom:28,display:"flex",flexWrap:"wrap",justifyContent:"center",gap:10,alignItems:"center"}}>
-        <button onClick={run} disabled={running} style={{
-          background:running?"#444":"#c9a84c",color:running?"#888":"#1a1a2e",
-          border:"none",borderRadius:6,padding:"11px 28px",fontSize:14,
-          fontWeight:"bold",cursor:running?"not-allowed":"pointer",fontFamily:"Georgia,serif",
-        }}>{running?"Optimiere…":runs===0?"Sitzplan erstellen":"Nochmal optimieren"}</button>
-
-        {arrangement&&(
-          <button onClick={()=>setFlipped(f=>!f)} style={{
-            background:"transparent",color:"#c9a84c",border:"1px solid #c9a84c",
-            borderRadius:6,padding:"11px 18px",fontSize:13,cursor:"pointer",fontFamily:"Georgia,serif",
-          }}>{flipped?"🎓 Schülersicht":"👁 Lehrersicht"}</button>
-        )}
-
-        {arrangement&&(
-          <button onClick={publish} disabled={publishing} style={{
-            background:publishing?"#333":"#2a6a2a",
-            color:publishing?"#666":"#90ee90",
-            border:"1px solid "+(publishing?"#444":"#4a9a4a"),
-            borderRadius:6,padding:"11px 22px",fontSize:13,fontWeight:"bold",
-            cursor:publishing?"not-allowed":"pointer",fontFamily:"Georgia,serif",
-          }}>
-            {publishing?"Wird veröffentlicht…":"📢 Für Schüler veröffentlichen"}
-          </button>
-        )}
-
+      <div style={{textAlign:"center",marginBottom:24,display:"flex",flexWrap:"wrap",justifyContent:"center",gap:10,alignItems:"center"}}>
+        <button onClick={run} disabled={running} style={{background:running?"#444":"#c9a84c",color:running?"#888":"#1a1a2e",border:"none",borderRadius:6,padding:"11px 28px",fontSize:14,fontWeight:"bold",cursor:running?"not-allowed":"pointer",fontFamily:"Georgia,serif"}}>
+          {running?"Optimiere…":runs===0?"Sitzplan erstellen":"Nochmal optimieren"}
+        </button>
+        {arrangement&&<button onClick={()=>setFlipped(f=>!f)} style={{background:"transparent",color:"#c9a84c",border:"1px solid #c9a84c",borderRadius:6,padding:"11px 18px",fontSize:13,cursor:"pointer",fontFamily:"Georgia,serif"}}>{flipped?"🎓 Schülersicht":"👁 Lehrersicht"}</button>}
+        {arrangement&&<button onClick={publish} disabled={publishing} style={{background:publishing?"#333":"#2a6a2a",color:publishing?"#666":"#90ee90",border:`1px solid ${publishing?"#444":"#4a9a4a"}`,borderRadius:6,padding:"11px 22px",fontSize:13,fontWeight:"bold",cursor:publishing?"not-allowed":"pointer",fontFamily:"Georgia,serif"}}>{publishing?"Wird veröffentlicht…":"📢 Für Schüler veröffentlichen"}</button>}
         {msg&&<span style={{fontSize:13,color:msg.startsWith("✅")?"#88ff88":"#ff8888",maxWidth:300,display:"inline-block"}}>{msg}</span>}
         {score!==null&&<span style={{color:"#444",fontSize:12}}>Score: {score.toFixed(0)} · #{runs}</span>}
       </div>
 
-      {!arrangement&&(
-        <div style={{textAlign:"center",color:"#444",marginTop:60,fontSize:14}}>
-          Klick auf „Sitzplan erstellen" um zu starten.<br/>
-          <span style={{fontSize:12,color:"#333",marginTop:8,display:"block"}}>
-            Der Algorithmus läuft 5× und nimmt das beste Ergebnis.<br/>
-            Danach kannst du per Drag & Drop manuell anpassen<br/>
-            und den Plan mit „📢 Für Schüler veröffentlichen" ins Sheet speichern.
-          </span>
-        </div>
-      )}
+      {!arrangement&&<div style={{textAlign:"center",color:"#444",marginTop:40,fontSize:14}}>
+        Klick auf „Sitzplan erstellen" um zu starten.
+        <div style={{fontSize:12,color:"#333",marginTop:8}}>5 Läufe · nutzt aktuelle Schüler-Präferenzen</div>
+      </div>}
 
       {arrangement&&(<>
         {!flipped&&<TafelBar/>}
-
         <div style={{maxWidth:780,margin:"0 auto 20px",display:"flex",gap:8}}>
-          {!flipped&&<div style={{width:20,flexShrink:0,display:"flex",alignItems:"stretch"}}>
-            <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",fontSize:10,color:"#5599cc",letterSpacing:2,background:"#0d2040",border:"1px solid #3366aa",borderRadius:6,padding:"10px 3px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>🪟 FENSTER</div>
-          </div>}
-
+          {!flipped&&<FensterBar/>}
           <div style={{flex:1}}>
             {(flipped?[4,3,2,1,0]:[0,1,2,3,4]).map(row=>(
               <div key={row} style={{marginBottom:12}}>
                 <div style={{fontSize:11,color:"#555",marginBottom:3,textAlign:"right"}}>{ROW_LABELS[row]}</div>
                 <div style={{display:"flex",gap:12,justifyContent:"center"}}>
-                  {(flipped?[2,1,0]:[0,1,2]).map(table=>(
-                    <div key={table} style={{display:"flex",gap:2,background:"#16213e",
-                      border:"1px solid #2a3a5e",
-                      borderLeft: (!flipped && table===0) ? "4px solid #5599cc" : "1px solid #2a3a5e",
-                      borderRight: (flipped && table===0) ? "4px solid #5599cc" : "1px solid #2a3a5e",
-                      borderRadius:6,padding:"5px 8px",flex:1,maxWidth:220}}>
-                      {(flipped?[1,0]:[0,1]).map(side=>{
-                        const col=table*2+side,name=studentAt(row,col),realIdx=row*6+col;
-                        const banN=getBanNeighbors(realIdx);
-                        let hasBan=false,hasNeg=false,hasPos=false;
-                        banN.forEach(j=>{const s2=arrangement[j];if(!s2||name==="—")return;
-                          if(isBanned(name,s2))hasBan=true;
-                          const w=getRelationWeight(realIdx,j);
-                          if(w>=40){
-                            if((NEGATIVE[name]||[]).includes(s2)||(NEGATIVE[s2]||[]).includes(name))hasNeg=true;
-                            if((POSITIVE[name]||[]).includes(s2)||(POSITIVE[s2]||[]).includes(name))hasPos=true;
-                          }
-                        });
-                        const isWin=col===0,atinaWin=name==="Atina"&&isWin,isDrag=dragSeat===realIdx;
-                        return(
-                          <div key={side} draggable
-                            onDragStart={()=>handleDragStart(realIdx)}
-                            onDragOver={e=>e.preventDefault()}
-                            onDrop={()=>handleDrop(realIdx)}
-                            onDragEnd={()=>setDragSeat(null)}
-                            style={{flex:1,textAlign:"center",padding:"7px 3px",borderRadius:4,cursor:"grab",
-                              userSelect:"none",fontSize:12,transition:"background 0.1s",
-                              borderLeft:side===1?"1px solid #2a3a5e":"none",
-                              opacity:isDrag?0.4:1,
-                              background:isDrag?"#c9a84c22":atinaWin||hasBan?"#5a1a1a":hasNeg?"#3a2a1a":hasPos?"#1a3a1a":"#0d1929",
-                              color:atinaWin||hasBan?"#ff6b6b":hasNeg?"#ffaa55":hasPos?"#66cc66":"#c8c0b0",
-                            }}
-                          >{name}</div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                  {(flipped?[2,1,0]:[0,1,2]).map(table=>{
+                    const isWin=table===0;
+                    return (
+                      <div key={table} style={{display:"flex",gap:2,background:"#16213e",border:"1px solid #2a3a5e",borderLeft:(!flipped&&isWin)?"4px solid #5599cc":"1px solid #2a3a5e",borderRight:(flipped&&isWin)?"4px solid #5599cc":"1px solid #2a3a5e",borderRadius:6,padding:"5px 8px",flex:1,maxWidth:220}}>
+                        {(flipped?[1,0]:[0,1]).map(side=>{
+                          const col=table*2+side,name=studentAt(row,col),ri=row*6+col;
+                          const banN=getBanNeighbors(ri);
+                          let hasLban=false,hasSban=false,hasNeg=false,hasPos=false;
+                          banN.forEach(j=>{
+                            const s2=arrangement[j]; if(!s2||name==="—") return;
+                            const p1=praeferenzen[name]||{},p2=praeferenzen[s2]||{};
+                            if((p1.ban_lehrer||[]).includes(s2)||(p2.ban_lehrer||[]).includes(name)) hasLban=true;
+                            if((p1.ban_schueler||[]).includes(s2)||(p2.ban_schueler||[]).includes(name)) hasSban=true;
+                            const w=getRelationWeight(ri,j);
+                            if(w>=40){
+                              if((p1.negativ||[]).includes(s2)||(p2.negativ||[]).includes(name)) hasNeg=true;
+                              if((p1.positiv||[]).includes(s2)||(p2.positiv||[]).includes(name)) hasPos=true;
+                            }
+                          });
+                          const isDrag=dragSeat===ri;
+                          return (
+                            <div key={side} draggable onDragStart={()=>handleDragStart(ri)} onDragOver={e=>e.preventDefault()} onDrop={()=>handleDrop(ri)} onDragEnd={()=>setDragSeat(null)}
+                              style={{flex:1,textAlign:"center",padding:"7px 3px",borderRadius:4,cursor:"grab",userSelect:"none",fontSize:12,transition:"background 0.1s",borderLeft:side===1?"1px solid #2a3a5e":"none",opacity:isDrag?0.4:1,
+                                background:isDrag?"#c9a84c22":hasLban?"#5a1a1a":hasSban?"#4a2010":hasNeg?"#3a2a1a":hasPos?"#1a3a1a":"#0d1929",
+                                color:hasLban?"#ff6b6b":hasSban?"#ff9944":hasNeg?"#ffaa55":hasPos?"#66cc66":"#c8c0b0"}}>
+                              {name}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
           </div>
-          {flipped&&<div style={{width:20,flexShrink:0,display:"flex",alignItems:"stretch"}}>
-            <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",fontSize:10,color:"#5599cc",letterSpacing:2,background:"#0d2040",border:"1px solid #3366aa",borderRadius:6,padding:"10px 3px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>🪟 FENSTER</div>
-          </div>}
+          {flipped&&<FensterBar/>}
         </div>
-
         {flipped&&<TafelBar/>}
 
-        {/* Legende */}
         <div style={{maxWidth:700,margin:"0 auto 16px",display:"flex",gap:14,justifyContent:"center",fontSize:12,flexWrap:"wrap"}}>
-          <span style={{color:"#66cc66"}}>■ Positive Präferenz</span>
-          <span style={{color:"#ffaa55"}}>■ Negative verletzt</span>
-          <span style={{color:"#ff6b6b"}}>■ Sperre verletzt</span>
-          <span style={{color:"#444"}}>· Drag & Drop zum Tauschen</span>
+          <span style={{color:"#66cc66"}}>■ Positiv</span>
+          <span style={{color:"#ffaa55"}}>■ Negativ</span>
+          <span style={{color:"#ff9944"}}>■ Schüler-Sperre</span>
+          <span style={{color:"#ff6b6b"}}>■ Lehrer-Sperre</span>
+          <span style={{color:"#444"}}>· Drag & Drop</span>
         </div>
 
-        {/* Analyse */}
         {analysis&&(
           <div style={{maxWidth:700,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:200,background:"#16213e",borderRadius:8,padding:14}}>
@@ -340,8 +443,8 @@ function SitzplanAdmin(){
               <h3 style={{color:"#ff9966",fontSize:13,marginBottom:8}}>⚠ Probleme ({analysis.issues.length})</h3>
               {analysis.issues.length===0&&<p style={{color:"#66cc66",fontSize:12}}>Keine!</p>}
               {analysis.issues.map((p,i)=>(
-                <div key={i} style={{fontSize:12,color:p.type==="ban"?"#ff6b6b":"#ffaa55",marginBottom:3}}>
-                  {p.type==="ban"?"🚫 ":"— "}{p.s1} ↔ {p.s2}
+                <div key={i} style={{fontSize:12,marginBottom:3,color:p.type==="lehrer_ban"?"#ff6b6b":p.type==="schueler_ban"?"#ff9944":p.type==="sitz"||p.type==="vorne"?"#5599cc":"#ffaa55"}}>
+                  {p.type==="lehrer_ban"?"🚫":p.type==="schueler_ban"?"⚠":p.type==="sitz"?"📍":p.type==="vorne"?"⬆":"—"} {p.s1} — {p.s2}
                 </div>
               ))}
             </div>
@@ -352,84 +455,80 @@ function SitzplanAdmin(){
   );
 }
 
-function TafelBar(){
-  return <div style={{background:"#2d5a27",borderRadius:8,textAlign:"center",padding:"8px",fontSize:13,color:"#90c080",letterSpacing:3,maxWidth:700,margin:"0 auto 14px"}}>TAFEL / LEHRER</div>;
-}
+// ===== MAIN APP =====
+function SitzplanAdmin() {
+  const[tab,setTab]=useState("optimizer");
+  const[praeferenzen,setPraeferenzen]=useState({});
+  const[prefsDirty,setPrefsDirty]=useState(false);
+  const[prefsSaving,setPrefsSaving]=useState(false);
+  const[publishedAt,setPublishedAt]=useState(null);
 
-function PinGate() {
-  const [unlocked, setUnlocked] = useState(
-    () => sessionStorage.getItem("admin_unlocked") === "1"
-  );
-  const [pin, setPin]     = useState("");
-  const [error, setError] = useState(false);
-  const [checking, setChecking] = useState(false);
+  useEffect(()=>{
+    fetch(API_URL+"?t="+Date.now(),{cache:"no-store",redirect:"follow"})
+      .then(r=>r.json())
+      .then(d=>{
+        if(d.sitzplan?.savedAt) setPublishedAt(d.sitzplan.savedAt);
+        if(d.praeferenzen) setPraeferenzen(d.praeferenzen);
+      })
+      .catch(()=>{});
+  },[]);
 
-  const check = useCallback(async () => {
-    setChecking(true);
-    const h = await hashPin(pin);
-    if (h === PIN_HASH) {
-      sessionStorage.setItem("admin_unlocked", "1");
-      setUnlocked(true);
-    } else {
-      setError(true);
-      setPin("");
-      setTimeout(() => setError(false), 2000);
-    }
-    setChecking(false);
-  }, [pin]);
+  const savePraeferenzen=useCallback(async()=>{
+    setPrefsSaving(true);
+    try {
+      const r=await fetch(API_URL,{method:"POST",body:JSON.stringify({type:"praeferenzen",data:praeferenzen}),redirect:"follow"});
+      const d=await r.json();
+      if(d.ok) setPrefsDirty(false);
+    } catch(e){}
+    setPrefsSaving(false);
+  },[praeferenzen]);
 
-  const onKey = useCallback((e) => {
-    if (e.key === "Enter") check();
-  }, [check]);
-
-  if (unlocked) return <SitzplanAdmin />;
+  const tabStyle=(active)=>({padding:"10px 24px",cursor:"pointer",border:"none",fontFamily:"Georgia,serif",background:active?"#16213e":"transparent",color:active?"#c9a84c":"#555",borderBottom:active?"2px solid #c9a84c":"2px solid transparent",fontSize:14});
 
   return (
-    <div style={{
-      minHeight:"100vh", display:"flex", flexDirection:"column",
-      alignItems:"center", justifyContent:"center",
-      background:"#1a1a2e", fontFamily:"Georgia,serif",
-    }}>
-      <div style={{
-        background:"#16213e", border:"1px solid #2a3a5e",
-        borderRadius:14, padding:"40px 36px", textAlign:"center",
-        maxWidth:320, width:"100%",
-      }}>
-        <div style={{fontSize:"2.5rem", marginBottom:12}}>🔒</div>
-        <h2 style={{color:"#c9a84c", fontSize:18, marginBottom:6}}>Admin-Bereich</h2>
-        <p style={{color:"#555", fontSize:13, marginBottom:24}}>Sitzplan-Optimierer · 8A</p>
+    <div style={{minHeight:"100vh",background:"#1a1a2e",color:"#e8e0d0",fontFamily:"Georgia,serif",padding:"24px 16px 60px"}}>
+      <h1 style={{textAlign:"center",fontSize:22,color:"#c9a84c",marginBottom:4,marginTop:28}}>
+        Sitzplan-Optimierer <span style={{fontSize:13,color:"#555",fontWeight:"normal"}}>Admin · 8A</span>
+      </h1>
+      <div style={{display:"flex",justifyContent:"center",marginBottom:24,borderBottom:"1px solid #2a3a5e"}}>
+        <button style={tabStyle(tab==="optimizer")} onClick={()=>setTab("optimizer")}>🗂 Optimierer</button>
+        <button style={tabStyle(tab==="schueler")} onClick={()=>setTab("schueler")}>
+          👤 Schüler{prefsDirty&&<span style={{color:"#cc8800",marginLeft:5}}>●</span>}
+        </button>
+      </div>
+      {tab==="optimizer"&&<OptimizerTab praeferenzen={praeferenzen} publishedAt={publishedAt} setPublishedAt={setPublishedAt}/>}
+      {tab==="schueler"&&<SchuelerTab praeferenzen={praeferenzen} setPraeferenzen={setPraeferenzen} onSave={savePraeferenzen} saving={prefsSaving} dirty={prefsDirty} setDirty={setPrefsDirty}/>}
+    </div>
+  );
+}
 
-        <input
-          type="password"
-          inputMode="numeric"
-          placeholder="PIN eingeben"
-          value={pin}
-          onChange={e => setPin(e.target.value)}
-          onKeyDown={onKey}
-          autoFocus
-          style={{
-            width:"100%", padding:"12px 14px", fontSize:18,
-            textAlign:"center", letterSpacing:8,
-            background:"#0d1929", color:"#e8e0d0",
-            border: error ? "1px solid #ff6b6b" : "1px solid #2a3a5e",
-            borderRadius:8, outline:"none", marginBottom:14,
-            fontFamily:"Georgia,serif",
-            transition:"border-color 0.2s",
-          }}
-        />
-
-        {error && (
-          <p style={{color:"#ff6b6b", fontSize:13, marginBottom:12}}>Falscher PIN – nochmal versuchen.</p>
-        )}
-
-        <button onClick={check} disabled={checking || !pin} style={{
-          width:"100%", padding:"12px", fontSize:15, fontWeight:"bold",
-          background: (!pin||checking) ? "#333" : "#c9a84c",
-          color: (!pin||checking) ? "#666" : "#1a1a2e",
-          border:"none", borderRadius:8, cursor: (!pin||checking) ? "not-allowed" : "pointer",
-          fontFamily:"Georgia,serif",
-        }}>
-          {checking ? "Prüfe…" : "Entsperren"}
+// ===== PIN GATE =====
+function PinGate() {
+  const[unlocked,setUnlocked]=useState(()=>sessionStorage.getItem("admin_unlocked")==="1");
+  const[pin,setPin]=useState("");
+  const[error,setError]=useState(false);
+  const[checking,setChecking]=useState(false);
+  const check=useCallback(async()=>{
+    setChecking(true);
+    const h=await hashPin(pin);
+    if(h===PIN_HASH){sessionStorage.setItem("admin_unlocked","1");setUnlocked(true);}
+    else{setError(true);setPin("");setTimeout(()=>setError(false),2000);}
+    setChecking(false);
+  },[pin]);
+  const onKey=useCallback((e)=>{if(e.key==="Enter")check();},[check]);
+  if(unlocked) return <SitzplanAdmin/>;
+  return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#1a1a2e",fontFamily:"Georgia,serif"}}>
+      <div style={{background:"#16213e",border:"1px solid #2a3a5e",borderRadius:14,padding:"40px 36px",textAlign:"center",maxWidth:320,width:"100%"}}>
+        <div style={{fontSize:"2.5rem",marginBottom:12}}>🔒</div>
+        <h2 style={{color:"#c9a84c",fontSize:18,marginBottom:6}}>Admin-Bereich</h2>
+        <p style={{color:"#555",fontSize:13,marginBottom:24}}>Sitzplan-Optimierer · 8A</p>
+        <input type="password" inputMode="numeric" placeholder="PIN eingeben" value={pin}
+          onChange={e=>setPin(e.target.value)} onKeyDown={onKey} autoFocus
+          style={{width:"100%",padding:"12px 14px",fontSize:18,textAlign:"center",letterSpacing:8,background:"#0d1929",color:"#e8e0d0",border:error?"1px solid #ff6b6b":"1px solid #2a3a5e",borderRadius:8,outline:"none",marginBottom:14,fontFamily:"Georgia,serif",transition:"border-color 0.2s"}}/>
+        {error&&<p style={{color:"#ff6b6b",fontSize:13,marginBottom:12}}>Falscher PIN</p>}
+        <button onClick={check} disabled={checking||!pin} style={{width:"100%",padding:"12px",fontSize:15,fontWeight:"bold",background:(!pin||checking)?"#333":"#c9a84c",color:(!pin||checking)?"#666":"#1a1a2e",border:"none",borderRadius:8,cursor:(!pin||checking)?"not-allowed":"pointer",fontFamily:"Georgia,serif"}}>
+          {checking?"Prüfe…":"Entsperren"}
         </button>
       </div>
     </div>
