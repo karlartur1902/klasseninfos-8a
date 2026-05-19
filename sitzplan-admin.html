@@ -248,7 +248,7 @@ function SeatModal({excluded,onChange,onClose}) {
 }
 
 // ===== SCHÜLER TAB =====
-function SchuelerTab({praeferenzen,setPraeferenzen,onSave,saving,dirty,setDirty}) {
+function SchuelerTab({praeferenzen,setPraeferenzen,onSave,saving,dirty,setDirty,saveMsg}) {
   const [selected,setSelected]=useState(STUDENTS.slice().sort()[0]);
   const [showSeatModal,setShowSeatModal]=useState(false);
   const prefs=praeferenzen[selected]||{};
@@ -298,7 +298,8 @@ function SchuelerTab({praeferenzen,setPraeferenzen,onSave,saving,dirty,setDirty}
         <button onClick={onSave} disabled={saving||!dirty} style={{background:(!dirty||saving)?"#333":"#2a6a2a",color:(!dirty||saving)?"#555":"#90ee90",border:`1px solid ${(!dirty||saving)?"#444":"#4a9a4a"}`,borderRadius:8,padding:"11px 32px",fontSize:14,fontWeight:"bold",cursor:(!dirty||saving)?"not-allowed":"pointer",fontFamily:"Georgia,serif"}}>
           {saving?"Speichere…":"💾 Alle Präferenzen speichern"}
         </button>
-        {dirty&&<div style={{fontSize:11,color:"#886600",marginTop:8}}>● Ungespeicherte Änderungen</div>}
+        {saveMsg&&<div style={{fontSize:12,color:saveMsg.startsWith("✅")?"#88ff88":"#ff8888",marginTop:8}}>{saveMsg}</div>}
+        {dirty&&!saveMsg&&<div style={{fontSize:11,color:"#886600",marginTop:8}}>● Ungespeicherte Änderungen</div>}
       </div>
 
       {showSeatModal&&<SeatModal excluded={prefs.sitz_ausschluss||[]} onChange={seats=>update({sitz_ausschluss:seats})} onClose={()=>setShowSeatModal(false)}/>}
@@ -473,13 +474,19 @@ function SitzplanAdmin() {
       .catch(()=>{});
   },[]);
 
+  const[saveMsg,setSaveMsg]=useState(null);
+  const flashSave=(text,dur=4000)=>{setSaveMsg(text);setTimeout(()=>setSaveMsg(null),dur);};
+
   const savePraeferenzen=useCallback(async()=>{
     setPrefsSaving(true);
     try {
       const r=await fetch(API_URL,{method:"POST",body:JSON.stringify({type:"praeferenzen",data:praeferenzen}),redirect:"follow"});
-      const d=await r.json();
-      if(d.ok) setPrefsDirty(false);
-    } catch(e){}
+      const text=await r.text();
+      let d;
+      try { d=JSON.parse(text); } catch(e) { flashSave("❌ Antwort kein JSON: "+text.slice(0,80)); setPrefsSaving(false); return; }
+      if(d.ok){ setPrefsDirty(false); flashSave("✅ Präferenzen gespeichert!"); }
+      else flashSave("❌ Fehler: "+(d.error||JSON.stringify(d)));
+    } catch(e){ flashSave("❌ Netzwerkfehler: "+e.message); }
     setPrefsSaving(false);
   },[praeferenzen]);
 
@@ -497,7 +504,7 @@ function SitzplanAdmin() {
         </button>
       </div>
       {tab==="optimizer"&&<OptimizerTab praeferenzen={praeferenzen} publishedAt={publishedAt} setPublishedAt={setPublishedAt}/>}
-      {tab==="schueler"&&<SchuelerTab praeferenzen={praeferenzen} setPraeferenzen={setPraeferenzen} onSave={savePraeferenzen} saving={prefsSaving} dirty={prefsDirty} setDirty={setPrefsDirty}/>}
+      {tab==="schueler"&&<SchuelerTab praeferenzen={praeferenzen} setPraeferenzen={setPraeferenzen} onSave={savePraeferenzen} saving={prefsSaving} dirty={prefsDirty} setDirty={setPrefsDirty} saveMsg={saveMsg}/>}
     </div>
   );
 }
