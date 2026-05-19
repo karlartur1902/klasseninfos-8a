@@ -480,7 +480,7 @@ function SitzplanAdmin() {
   const savePraeferenzen=useCallback(async()=>{
     setPrefsSaving(true);
     try {
-      const r=await fetch(API_URL,{method:"POST",body:JSON.stringify({type:"praeferenzen",data:praeferenzen}),redirect:"follow"});
+      const r=await fetch(API_URL+"?type=praeferenzen",{method:"POST",body:JSON.stringify({data:praeferenzen}),redirect:"follow"});
       const text=await r.text();
       let d;
       try { d=JSON.parse(text); } catch(e) { flashSave("❌ Antwort kein JSON: "+text.slice(0,80)); setPrefsSaving(false); return; }
