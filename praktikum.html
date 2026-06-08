@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Schülerpraktikum 8A → 9</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin: 0; padding: 20px 16px 40px;
+      max-width: 820px; background: #f7f8fa;
+    }
+
+    h1 { margin: 0 0 4px; font-size: 1.4rem; }
+    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+
+    /* ── Fortschrittsbereich ── */
+    .progress-card {
+      background: #fff; border: 1px solid #ddd; border-radius: 14px;
+      padding: 16px 18px; margin-bottom: 20px;
+    }
+    .progress-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+    }
+    .progress-title { font-weight: 700; font-size: 1rem; }
+    .progress-count { font-size: 0.95rem; color: #555; }
+
+    .bar-wrap {
+      background: #eee; border-radius: 999px; height: 12px;
+      overflow: hidden; margin-bottom: 10px;
+    }
+    .bar-fill {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, #4caf82, #38a169);
+      transition: width 0.6s ease;
+    }
+
+    .stats-row {
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .stat-pill {
+      padding: 3px 12px; border-radius: 999px;
+      font-size: 0.85rem; border: 1px solid;
+    }
+    .stat-ok      { background: #f0fff6; border-color: #a8ddb5; color: #1a6b3c; }
+    .stat-pending { background: #fff7f0; border-color: #f5c89a; color: #8a4a00; }
+    .stat-empty   { background: #fdf2f2; border-color: #f2b8b8; color: #8b0000; }
+
+    /* ── Filterkarte ── */
+    .filter-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+      align-items: center;
+    }
+    .filter-btn {
+      padding: 5px 14px; border-radius: 999px;
+      border: 1px solid #ccc; background: #fff;
+      font-size: 0.88rem; cursor: pointer; color: #444;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .filter-btn.active {
+      background: #1a3a5c; border-color: #1a3a5c; color: #fff;
+    }
+    .filter-label { font-size: 0.85rem; color: #888; margin-right: 2px; }
+
+    /* ── Karten-Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 12px;
+    }
+
+    .pcard {
+      background: #fff; border: 1px solid #ddd; border-radius: 14px;
+      padding: 14px 15px; position: relative;
+      transition: box-shadow 0.15s;
+    }
+    .pcard:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+
+    .pcard-name {
+      font-weight: 700; font-size: 1.05rem; margin-bottom: 8px;
+      padding-right: 60px;
+    }
+
+    /* Status-Badge oben rechts */
+    .status-badge {
+      position: absolute; top: 14px; right: 14px;
+      padding: 2px 9px; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 600; border: 1px solid;
+    }
+    .badge-confirmed  { background: #f0fff6; border-color: #a8ddb5; color: #1a6b3c; }
+    .badge-inprogress { background: #fff7f0; border-color: #f5c89a; color: #8a4a00; }
+    .badge-empty      { background: #fdf2f2; border-color: #f2b8b8; color: #8b0000; }
+
+    /* Felder innerhalb der Karte */
+    .field { font-size: 0.88rem; margin-bottom: 5px; display: flex; gap: 6px; align-items: flex-start; }
+    .field-icon { flex-shrink: 0; opacity: 0.5; width: 14px; text-align: center; margin-top: 1px; }
+    .field-val  { color: #333; line-height: 1.35; }
+    .field-miss { color: #c0392b; font-style: italic; }
+
+    /* fehlende Felder als kleine Tags unten */
+    .missing-tags {
+      margin-top: 9px; display: flex; gap: 5px; flex-wrap: wrap;
+    }
+    .miss-tag {
+      background: #fff0f0; border: 1px solid #f2b8b8; color: #b00;
+      border-radius: 6px; padding: 1px 7px; font-size: 0.75rem;
+    }
+
+    .loading { text-align: center; color: #999; padding: 40px 0; font-size: 1rem; }
+    .err-box  { background: #fff3f3; border: 1px solid #f2b8b8; border-radius: 12px;
+                padding: 14px 18px; color: #8b0000; }
+
+    @media (max-width: 480px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>💼 Schülerpraktikum – Klasse 8A → 9</h1>
+  <p class="subtitle">Übersicht aller Praktikumsstellen · Schuljahr 2025/26</p>
+
+  <div id="progressCard" class="progress-card" style="display:none">
+    <div class="progress-header">
+      <span class="progress-title">Fortschritt: Stellen gefunden</span>
+      <span class="progress-count" id="progressLabel">—</span>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill" id="progressBar" style="width:0%"></div></div>
+    <div class="stats-row" id="statsRow"></div>
+  </div>
+
+  <div class="filter-row">
+    <span class="filter-label">Zeigen:</span>
+    <button class="filter-btn active" data-filter="all"   onclick="setFilter('all')">Alle</button>
+    <button class="filter-btn"        data-filter="ok"    onclick="setFilter('ok')">✅ Bestätigt</button>
+    <button class="filter-btn"        data-filter="pending" onclick="setFilter('pending')">🔶 In Bearbeitung</button>
+    <button class="filter-btn"        data-filter="empty" onclick="setFilter('empty')">❌ Fehlt noch</button>
+  </div>
+
+  <div id="root"><div class="loading">Lade…</div></div>
+
+  <script>
+const API_URL = "https://script.google.com/macros/s/AKfycbyFC2I84QV0Y0NCxJnzoppkEDlddfWA6WNUYiNGrfkJCZR4Yk4XxteDountcfQpwvusUA/exec";
+const CACHE_KEY = "praktikum_cache_v1";
+
+let allData = [];
+let currentFilter = "all";
+
+// ── Hilfsfunktionen ──────────────────────────────────────────────
+function cardStatus(s) {
+  // s = Schüler-Objekt aus Sheet
+  const hasStellle   = !!s.stelle;
+  const hasAdresse   = !!s.adresse;
+  const hasBeruf     = !!s.beruf;
+  const bestaetigt   = String(s.bestaetigt || "").trim().toLowerCase();
+  const isConfirmed  = bestaetigt === "ja" || bestaetigt === "true";
+
+  if (!hasStellle && !hasAdresse && !hasBeruf) return "empty";
+  if (isConfirmed && hasStellle && hasAdresse && hasBeruf) return "ok";
+  return "pending";
+}
+
+function missingFields(s) {
+  const missing = [];
+  if (!s.stelle)    missing.push("Praktikumsstelle");
+  if (!s.adresse)   missing.push("Adresse");
+  if (!s.beruf)     missing.push("Ausbildungsberuf");
+  const best = String(s.bestaetigt || "").trim().toLowerCase();
+  if (best !== "ja" && best !== "true") missing.push("Bestätigung");
+  return missing;
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function renderAll(data) {
+  allData = data;
+  renderProgress(data);
+  renderGrid(data, currentFilter);
+  document.getElementById("progressCard").style.display = "";
+}
+
+function renderProgress(data) {
+  const total    = data.length;
+  const ok       = data.filter(s => cardStatus(s) === "ok").length;
+  const pending  = data.filter(s => cardStatus(s) === "pending").length;
+  const empty    = data.filter(s => cardStatus(s) === "empty").length;
+
+  const pct = total > 0 ? Math.round(ok / total * 100) : 0;
+  document.getElementById("progressBar").style.width  = pct + "%";
+  document.getElementById("progressLabel").textContent = `${ok} von ${total} vollständig & bestätigt`;
+
+  document.getElementById("statsRow").innerHTML = `
+    <span class="stat-pill stat-ok">✅ ${ok} bestätigt</span>
+    <span class="stat-pill stat-pending">🔶 ${pending} in Bearbeitung</span>
+    <span class="stat-pill stat-empty">❌ ${empty} fehlen noch</span>
+  `;
+}
+
+function renderGrid(data, filter) {
+  const filtered = filter === "all" ? data : data.filter(s => cardStatus(s) === filter);
+
+  if (filtered.length === 0) {
+    document.getElementById("root").innerHTML = `<div class="loading" style="color:#aaa">Keine Einträge in dieser Kategorie.</div>`;
+    return;
+  }
+
+  const cards = filtered.map(s => {
+    const status = cardStatus(s);
+    const missing = missingFields(s);
+
+    const badgeClass = { ok: "badge-confirmed", pending: "badge-inprogress", empty: "badge-empty" }[status];
+    const badgeText  = { ok: "Bestätigt", pending: "In Bearbeitung", empty: "Fehlt noch" }[status];
+
+    const fieldHtml = (icon, val, label) => val
+      ? `<div class="field"><span class="field-icon">${icon}</span><span class="field-val">${esc(val)}</span></div>`
+      : `<div class="field"><span class="field-icon">${icon}</span><span class="field-miss">– ${label} fehlt</span></div>`;
+
+    const missTags = missing.length > 0
+      ? `<div class="missing-tags">${missing.map(m => `<span class="miss-tag">${esc(m)}</span>`).join("")}</div>`
+      : "";
+
+    return `
+      <div class="pcard">
+        <div class="pcard-name">${esc(s.name)}</div>
+        <span class="status-badge ${badgeClass}">${badgeText}</span>
+        ${fieldHtml("🏢", s.stelle,  "Praktikumsstelle")}
+        ${fieldHtml("📍", s.adresse, "Adresse")}
+        ${fieldHtml("🎓", s.beruf,   "Ausbildungsberuf")}
+        ${missTags}
+      </div>`;
+  }).join("");
+
+  document.getElementById("root").innerHTML = `<div class="grid">${cards}</div>`;
+}
+
+function esc(str) {
+  return String(str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll(".filter-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.filter === f);
+  });
+  renderGrid(allData, f);
+}
+
+// ── Laden ────────────────────────────────────────────────────────
+async function load() {
+  // Cache sofort zeigen
+  const cached = localStorage.getItem(CACHE_KEY);
+  if (cached) {
+    try { renderAll(JSON.parse(cached)); } catch(e) {}
+  }
+
+  try {
+    const res  = await fetch(API_URL + "?action=praktikum");
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+
+    const data = (json.praktikum || []).map(r => ({
+      name:       String(r[0] || "").trim(),
+      stelle:     String(r[1] || "").trim(),
+      adresse:    String(r[2] || "").trim(),
+      beruf:      String(r[3] || "").trim(),
+      bestaetigt: String(r[4] || "").trim(),
+    })).filter(r => r.name);
+
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    renderAll(data);
+  } catch(err) {
+    if (!allData.length) {
+      document.getElementById("root").innerHTML =
+        `<div class="err-box">Fehler beim Laden: ${esc(String(err))}</div>`;
+    }
+  }
+}
+
+load();
+  </script>
+</body>
+</html>
