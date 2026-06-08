@@ -80,7 +80,7 @@
   <div id="content"><div class="loading">Lade…</div></div>
 
 <script>
-const API_URL   = "https://script.google.com/macros/s/AKfycbyFC2I84QV0Y0NCxJnzoppkEDlddfWA6WNUYiNGrfkJCZR4Yk4XxteDountcfQpwvusUA/exec";
+const API_URL   = "https://script.google.com/macros/s/AKfycbxLIoQW3X4m-DHnHPFluK0uA79493EoSzO6ZNpACBaJkEE_2i0lrP4Za0aocjiegYf2gw/exec";
 const CACHE_KEY = "sitzplan_cache";
 const ROW_LABELS = ["Reihe 1 (vorne)","Reihe 2","Reihe 3","Reihe 4","Reihe 5 (hinten)"];
 
@@ -169,8 +169,11 @@ async function main() {
     const r = await fetch(url, { cache:"no-store", redirect:"follow" });
     const d = JSON.parse(await r.text());
     if (d.sitzplan && d.sitzplan.arrangement) {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(d.sitzplan));
-      render(d.sitzplan.arrangement, d.sitzplan.savedAt);
+      const known = new Set(d.schueler || []);
+      const filtered = d.sitzplan.arrangement.map(n => (n && (known.size===0||known.has(n))) ? n : null);
+      const filtered_plan = {...d.sitzplan, arrangement: filtered};
+      localStorage.setItem(CACHE_KEY, JSON.stringify(filtered_plan));
+      render(filtered_plan.arrangement, filtered_plan.savedAt);
     } else {
       if (!localStorage.getItem(CACHE_KEY)) showEmpty();
     }
