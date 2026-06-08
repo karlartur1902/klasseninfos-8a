@@ -30,7 +30,7 @@
 <script type="text/babel">
 const { useState, useCallback, useEffect } = React;
 
-const API_URL  = "https://script.google.com/macros/s/AKfycbyFC2I84QV0Y0NCxJnzoppkEDlddfWA6WNUYiNGrfkJCZR4Yk4XxteDountcfQpwvusUA/exec";
+const API_URL  = "https://script.google.com/macros/s/AKfycbxLIoQW3X4m-DHnHPFluK0uA79493EoSzO6ZNpACBaJkEE_2i0lrP4Za0aocjiegYf2gw/exec";
 // PIN als SHA-256-Hash – zum Ändern: https://emn178.github.io/online-tools/sha256.html
 const PIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
 
@@ -39,12 +39,8 @@ async function hashPin(pin) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
 }
 
-const STUDENTS = [
-  "Miroslava","Fabiyana","Viktor","Elias","Perla","Angelina","David",
-  "Mustafa","Bayram","Hayat","Rojin","Amina","Jan","Atina","Svetlin",
-  "Sophia","Sevdalina","Rusen","Zeki","Zhivko","Yilmaz","Hacimuhammet",
-  "Muhammed","Hasan","Anelisa","Yousif","Azusena"
-];
+// Schülerliste wird dynamisch von der API geladen (Tab "Schueler" im Sheet)
+let STUDENTS = [];
 
 const ROW_LABELS   = ["Reihe 1 (vorne)","Reihe 2","Reihe 3","Reihe 4","Reihe 5 (hinten)"];
 const VORNE_LABELS = ["Egal","Leicht vorne bevorzugt","Reihe 5 meiden","Reihen 4–5 meiden","Nur Reihen 1–2"];
@@ -116,8 +112,8 @@ function scoreArrangement(arr, praef) {
   }
   return score-hv;
 }
-function optimize(iters=60000, praef={}) {
-  const seats=[...STUDENTS,null,null,null];
+function optimize(iters=60000, praef={}, students=[]) {
+  const seats=[...students,...Array(Math.max(0,30-students.length)).fill(null)];
   for(let i=seats.length-1;i>0;i--) {
     const j=Math.floor(Math.random()*(i+1)); [seats[i],seats[j]]=[seats[j],seats[i]];
   }
@@ -134,6 +130,11 @@ function optimize(iters=60000, praef={}) {
   }
   return {arrangement:best,score:bestS};
 }
+function filterArrangement(arr, students) {
+  const s = new Set(students);
+  return arr.map(name => (name && s.has(name)) ? name : null);
+}
+
 function analyzeArrangement(arr, praef) {
   const issues=[], positives=[];
   for(let i=0;i<30;i++) {
@@ -248,8 +249,10 @@ function SeatModal({excluded,onChange,onClose}) {
 }
 
 // ===== SCHÜLER TAB =====
-function SchuelerTab({praeferenzen,setPraeferenzen,onSave,saving,dirty,setDirty,saveMsg}) {
-  const [selected,setSelected]=useState(STUDENTS.slice().sort()[0]);
+function SchuelerTab({praeferenzen,setPraeferenzen,onSave,saving,dirty,setDirty,saveMsg,students}) {
+  const [selected,setSelected]=useState('');
+  const sorted=students.slice().sort();
+  useEffect(()=>{if(students.length>0&&!selected)setSelected(students[0]);},[students]);
   const [showSeatModal,setShowSeatModal]=useState(false);
   const prefs=praeferenzen[selected]||{};
   function update(patch) {
@@ -261,22 +264,22 @@ function SchuelerTab({praeferenzen,setPraeferenzen,onSave,saving,dirty,setDirty,
   return (
     <div style={{maxWidth:680,margin:"0 auto",padding:"0 8px"}}>
       <select value={selected} onChange={e=>setSelected(e.target.value)} style={{width:"100%",background:"#16213e",color:"#e8e0d0",border:"1px solid #2a3a5e",borderRadius:8,padding:"10px 14px",fontSize:14,marginBottom:16,fontFamily:"Georgia,serif"}}>
-        {STUDENTS.slice().sort().map(s=><option key={s} value={s}>{s}</option>)}
+        {sorted.map(s=><option key={s} value={s}>{s}</option>)}
       </select>
 
       <PrefSection title="✓ Positive Präferenzen" color="#66cc66">
-        <ChipList items={prefs.positiv||[]} onRemove={n=>removeFrom("positiv",n)} students={STUDENTS} self={selected} onAdd={n=>addTo("positiv",n)} color="#66cc66"/>
+        <ChipList items={prefs.positiv||[]} onRemove={n=>removeFrom("positiv",n)} students={students} self={selected} onAdd={n=>addTo("positiv",n)} color="#66cc66"/>
       </PrefSection>
       <PrefSection title="— Negative Präferenzen" color="#ffaa55">
-        <ChipList items={prefs.negativ||[]} onRemove={n=>removeFrom("negativ",n)} students={STUDENTS} self={selected} onAdd={n=>addTo("negativ",n)} color="#ffaa55"/>
+        <ChipList items={prefs.negativ||[]} onRemove={n=>removeFrom("negativ",n)} students={students} self={selected} onAdd={n=>addTo("negativ",n)} color="#ffaa55"/>
       </PrefSection>
       <PrefSection title="⚠ Schüler-Sperre" color="#ff9966">
         <div style={{fontSize:11,color:"#555",marginBottom:8}}>Von Schüler gemeldet – stark, aber überwindbar</div>
-        <ChipList items={prefs.ban_schueler||[]} onRemove={n=>removeFrom("ban_schueler",n)} students={STUDENTS} self={selected} onAdd={n=>addTo("ban_schueler",n)} color="#ff9966"/>
+        <ChipList items={prefs.ban_schueler||[]} onRemove={n=>removeFrom("ban_schueler",n)} students={students} self={selected} onAdd={n=>addTo("ban_schueler",n)} color="#ff9966"/>
       </PrefSection>
       <PrefSection title="🚫 Lehrer-Sperre" color="#ff6b6b">
         <div style={{fontSize:11,color:"#555",marginBottom:8}}>Absolut – wird niemals verletzt</div>
-        <ChipList items={prefs.ban_lehrer||[]} onRemove={n=>removeFrom("ban_lehrer",n)} students={STUDENTS} self={selected} onAdd={n=>addTo("ban_lehrer",n)} color="#ff6b6b"/>
+        <ChipList items={prefs.ban_lehrer||[]} onRemove={n=>removeFrom("ban_lehrer",n)} students={students} self={selected} onAdd={n=>addTo("ban_lehrer",n)} color="#ff6b6b"/>
       </PrefSection>
       <PrefSection title="📍 Sitzplatz-Ausschlüsse" color="#5599cc">
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -308,7 +311,7 @@ function SchuelerTab({praeferenzen,setPraeferenzen,onSave,saving,dirty,setDirty,
 }
 
 // ===== OPTIMIZER TAB =====
-function OptimizerTab({praeferenzen,publishedAt,setPublishedAt}) {
+function OptimizerTab({praeferenzen,publishedAt,setPublishedAt,students}) {
   const[arrangement,setArrangement]=useState(null);
   const[score,setScore]=useState(null);
   const[running,setRunning]=useState(false);
@@ -459,6 +462,7 @@ function OptimizerTab({praeferenzen,publishedAt,setPublishedAt}) {
 // ===== MAIN APP =====
 function SitzplanAdmin() {
   const[tab,setTab]=useState("optimizer");
+  const[students,setStudents]=useState([]);
   const[praeferenzen,setPraeferenzen]=useState({});
   const[prefsDirty,setPrefsDirty]=useState(false);
   const[prefsSaving,setPrefsSaving]=useState(false);
@@ -470,6 +474,11 @@ function SitzplanAdmin() {
       .then(d=>{
         if(d.sitzplan?.savedAt) setPublishedAt(d.sitzplan.savedAt);
         if(d.praeferenzen) setPraeferenzen(d.praeferenzen);
+        if(d.schueler&&d.schueler.length>0){
+          setStudents(d.schueler);
+          STUDENTS.length=0;
+          d.schueler.forEach(s=>STUDENTS.push(s));
+        }
       })
       .catch(()=>{});
   },[]);
@@ -503,8 +512,9 @@ function SitzplanAdmin() {
           👤 Schüler{prefsDirty&&<span style={{color:"#cc8800",marginLeft:5}}>●</span>}
         </button>
       </div>
-      {tab==="optimizer"&&<OptimizerTab praeferenzen={praeferenzen} publishedAt={publishedAt} setPublishedAt={setPublishedAt}/>}
-      {tab==="schueler"&&<SchuelerTab praeferenzen={praeferenzen} setPraeferenzen={setPraeferenzen} onSave={savePraeferenzen} saving={prefsSaving} dirty={prefsDirty} setDirty={setPrefsDirty} saveMsg={saveMsg}/>}
+      {students.length===0&&<div style={{textAlign:"center",color:"#555",padding:"40px",fontSize:13}}>⏳ Lade Schülerliste…</div>}
+      {tab==="optimizer"&&students.length>0&&<OptimizerTab praeferenzen={praeferenzen} publishedAt={publishedAt} setPublishedAt={setPublishedAt} students={students}/>}
+      {tab==="schueler"&&<SchuelerTab praeferenzen={praeferenzen} setPraeferenzen={setPraeferenzen} onSave={savePraeferenzen} saving={prefsSaving} dirty={prefsDirty} setDirty={setPrefsDirty} saveMsg={saveMsg} students={students}/>}
     </div>
   );
 }
