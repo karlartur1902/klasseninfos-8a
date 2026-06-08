@@ -462,7 +462,9 @@ function OptimizerTab({praeferenzen,publishedAt,setPublishedAt,students}) {
 // ===== MAIN APP =====
 function SitzplanAdmin() {
   const[tab,setTab]=useState("optimizer");
-  const[students,setStudents]=useState([]);
+  const[students,setStudents]=useState(()=>{
+    try { const c=localStorage.getItem("admin_students"); return c?JSON.parse(c):[]; } catch(e){return [];}
+  });
   const[praeferenzen,setPraeferenzen]=useState({});
   const[prefsDirty,setPrefsDirty]=useState(false);
   const[prefsSaving,setPrefsSaving]=useState(false);
@@ -476,6 +478,7 @@ function SitzplanAdmin() {
         if(d.praeferenzen) setPraeferenzen(d.praeferenzen);
         if(d.schueler&&d.schueler.length>0){
           setStudents(d.schueler);
+          localStorage.setItem("admin_students", JSON.stringify(d.schueler));
           STUDENTS.length=0;
           d.schueler.forEach(s=>STUDENTS.push(s));
         }
@@ -506,14 +509,16 @@ function SitzplanAdmin() {
       <h1 style={{textAlign:"center",fontSize:22,color:"#c9a84c",marginBottom:4,marginTop:28}}>
         Sitzplan-Optimierer <span style={{fontSize:13,color:"#555",fontWeight:"normal"}}>Admin · 8A</span>
       </h1>
+      {studentsWarning&&<div style={{background:"#3a1a1a",border:"1px solid #ff6b6b",borderRadius:8,padding:"10px 16px",marginBottom:16,fontSize:12,color:"#ff9999",textAlign:"center"}}>
+        ⚠ Schülerliste konnte nicht geladen werden – prüfe ob <code>payload.schueler</code> in Apps Script doGet() gesetzt ist und neu deployed wurde.
+      </div>}
       <div style={{display:"flex",justifyContent:"center",marginBottom:24,borderBottom:"1px solid #2a3a5e"}}>
         <button style={tabStyle(tab==="optimizer")} onClick={()=>setTab("optimizer")}>🗂 Optimierer</button>
         <button style={tabStyle(tab==="schueler")} onClick={()=>setTab("schueler")}>
           👤 Schüler{prefsDirty&&<span style={{color:"#cc8800",marginLeft:5}}>●</span>}
         </button>
       </div>
-      {students.length===0&&<div style={{textAlign:"center",color:"#555",padding:"40px",fontSize:13}}>⏳ Lade Schülerliste…</div>}
-      {tab==="optimizer"&&students.length>0&&<OptimizerTab praeferenzen={praeferenzen} publishedAt={publishedAt} setPublishedAt={setPublishedAt} students={students}/>}
+      {tab==="optimizer"&&<OptimizerTab praeferenzen={praeferenzen} publishedAt={publishedAt} setPublishedAt={setPublishedAt} students={students}/>}
       {tab==="schueler"&&<SchuelerTab praeferenzen={praeferenzen} setPraeferenzen={setPraeferenzen} onSave={savePraeferenzen} saving={prefsSaving} dirty={prefsDirty} setDirty={setPrefsDirty} saveMsg={saveMsg} students={students}/>}
     </div>
   );
