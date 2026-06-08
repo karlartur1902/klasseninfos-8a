@@ -465,25 +465,31 @@ function SitzplanAdmin() {
   const[students,setStudents]=useState(()=>{
     try { const c=localStorage.getItem("admin_students"); return c?JSON.parse(c):[]; } catch(e){return [];}
   });
+  const[studentsWarning,setStudentsWarning]=useState(false);
   const[praeferenzen,setPraeferenzen]=useState({});
   const[prefsDirty,setPrefsDirty]=useState(false);
   const[prefsSaving,setPrefsSaving]=useState(false);
   const[publishedAt,setPublishedAt]=useState(null);
 
   useEffect(()=>{
+    const timer=setTimeout(()=>setStudentsWarning(true),6000);
     fetch(API_URL+"?t="+Date.now(),{cache:"no-store",redirect:"follow"})
       .then(r=>r.json())
       .then(d=>{
+        clearTimeout(timer);
         if(d.sitzplan?.savedAt) setPublishedAt(d.sitzplan.savedAt);
         if(d.praeferenzen) setPraeferenzen(d.praeferenzen);
         if(d.schueler&&d.schueler.length>0){
           setStudents(d.schueler);
-          localStorage.setItem("admin_students", JSON.stringify(d.schueler));
+          localStorage.setItem("admin_students",JSON.stringify(d.schueler));
           STUDENTS.length=0;
           d.schueler.forEach(s=>STUDENTS.push(s));
+          setStudentsWarning(false);
+        } else {
+          setStudentsWarning(true);
         }
       })
-      .catch(()=>{});
+      .catch(()=>{clearTimeout(timer);setStudentsWarning(true);});
   },[]);
 
   const[saveMsg,setSaveMsg]=useState(null);
